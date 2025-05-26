@@ -8,7 +8,7 @@ import time
 import queue
 import tensorflow as tf
 from tensorflow.keras.saving import register_keras_serializable
-
+ 
 
 VIDEO_PATH = os.path.join("test_videos", "munich_driving_cropped.mp4")
 FRAME_SKIP = 2
