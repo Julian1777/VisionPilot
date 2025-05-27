@@ -13,13 +13,13 @@ def roi(image):
     height, width = image.shape[:2]
     mask = np.zeros_like(image)
     polygon = np.array([[
-        (0, height),           # Bottom left
-        (0, height*0.8),     # Mid-left point
-        (width*0.37, height*0.5),      # Top left
-        (width*0.57, height*0.5),      # Top right
-        (width, height*0.76),      # Mid-right point
-        (width, height)            # Bottom right
-    ]], dtype=np.int32)
+        (0.0 * width, 0.78 * height),      # Bottom left
+        (0.15 * width, 0.65 * height),     # Mid left
+        (0.4 * width, 0.45 * height),      # Top left
+        (0.6 * width, 0.45 * height),      # Top right
+        (0.95 * width, 0.7 * height),      # Mid right
+        (1.0 * width, 0.78 * height)       # Bottom right
+    ]], dtype=np.float32)
 
     cv.fillPoly(mask, polygon, 255)
     masked_img = cv.bitwise_and(image, mask)
@@ -49,7 +49,7 @@ def filter_lanes(lines, image_width):
 def make_coordinates(image,line_parameters):
     slope,intercept=line_parameters
     y1=image.shape[0]
-    y2=int(y1*0.7)
+    y2=int(y1*0.65)
     x1=int((y1-intercept)/slope)
     x2=int((y2-intercept)/slope)
     return np.array([x1,y1,x2,y2])

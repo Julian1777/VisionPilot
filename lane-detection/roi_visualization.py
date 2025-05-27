@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 
 # Load your image
-image = cv.imread("highway.jpg")
+image = cv.imread(r"C:\Users\user\Documents\github\self-driving-car-simulation\carla\carla_front_camera.jpg")
 height, width = image.shape[:2]
 
 # Create a copy for visualization
@@ -75,52 +75,22 @@ def draw_roi(img, points, color, label):
 # Draw your current ROI
 current_roi = visualization.copy()
 draw_roi(current_roi, [
-         (0.0, 1.0),           # Bottom left (0%, 100%)
+         (0.0, 0.78),           # Bottom left (0%, 100%)
          (0.15, 0.65), #mid left
          (0.4, 0.45),          # Top left (35%, 30%)
          (0.6, 0.45),          # Top right (65%, 30%)
          (0.95, 0.7), #mid right
-         (1.0, 1.0)           # Bottom right (100%, 100%)
+         (1.0, 0.78)           # Bottom right (100%, 100%)
 ], (0, 255, 0), "Current ROI")
 
-# Draw a wider ROI example
-wider_roi = visualization.copy()
-draw_roi(wider_roi, [
-    (0.0, 1.0),           # Bottom left
-    (0.2, 0.6),           # Top left
-    (0.8, 0.6),           # Top right
-    (1.0, 1.0)            # Bottom right
-], (0, 255, 255), "Wider ROI")
-
-# Draw a narrower ROI example
-narrower_roi = visualization.copy()
-draw_roi(narrower_roi, [
-    (0.3, 1.0),           # Bottom left
-    (0.4, 0.5),           # Top left
-    (0.6, 0.5),           # Top right
-    (0.7, 1.0)            # Bottom right
-], (255, 0, 0), "Narrower ROI")
-
 # Show the visualizations
-cv.namedWindow('Grid & Coordinates')
 cv.namedWindow('Current ROI')
-cv.namedWindow('Wider ROI')
-cv.namedWindow('Narrower ROI')
 
-cv.moveWindow('Grid & Coordinates', 0, 0)
 cv.moveWindow('Current ROI', 600, 0)
-cv.moveWindow('Wider ROI', 0, 600)
-cv.moveWindow('Narrower ROI', 600, 600)
 
-grid_resized = cv.resize(visualization, (550, 400))
 current_resized = cv.resize(current_roi, (550, 400))
-wider_resized = cv.resize(wider_roi, (550, 400))
-narrower_resized = cv.resize(narrower_roi, (550, 400))
 
-cv.imshow('Grid & Coordinates', grid_resized)
 cv.imshow('Current ROI', current_resized)
-cv.imshow('Wider ROI', wider_resized)
-cv.imshow('Narrower ROI', narrower_resized)
 
 cv.waitKey(0)
 cv.destroyAllWindows()

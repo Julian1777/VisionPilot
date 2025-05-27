@@ -27,7 +27,6 @@ update_interval = 5
 window_width, window_height = 800, 600
 frame_count = 0
 
-cap = None
 playing = False
 delay = 30
 
@@ -35,8 +34,7 @@ main_photo = None
 lane_hough_photo = None
 lane_ml_photo = None
 sign_photo = None
-light_detect_photo = None
-light_class_photo = None
+light_detect_class_photo = None
 vehicle_ped_photo = None
 
 current_control = carla.VehicleControl()
@@ -106,6 +104,7 @@ def carla_camera_callback(image):
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = array.reshape((image.height, image.width, 4))
     frame = array[:, :, :3]  # BGR
+    frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)  # Convert to RGB
     frame = np.array(frame, copy=True)
 
     frame_main = frame.copy()
@@ -127,44 +126,8 @@ def carla_front_camera_callback(image):
     array = np.frombuffer(image.raw_data, dtype=np.uint8)
     array = array.reshape((image.height, image.width, 4))
     frame = array[:, :, :3]  # BGR
+    frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)  # Convert to RGB
     frame = np.array(frame, copy=True)
-    
-    frame_lane_hough = frame.copy()
-    frame_lane_ml = frame.copy()
-    frame_sign = frame.copy()
-    frame_light = frame.copy()
-    frame_vehicle = frame.copy()
-    
-    photo_lane_hough = numpy_to_tkinter(frame_lane_hough, window_id="lane_hough")
-    photo_lane_ml = numpy_to_tkinter(frame_lane_ml, window_id="lane_ml")
-    photo_sign = numpy_to_tkinter(frame_sign, window_id="sign")
-    photo_light = numpy_to_tkinter(frame_light, window_id="light")
-    photo_vehicle = numpy_to_tkinter(frame_vehicle, window_id="vehicle")
-    
-    photo_refs_list.extend([
-        photo_lane_hough, photo_lane_ml, 
-        photo_sign, photo_light, photo_vehicle
-    ])
-    if len(photo_refs_list) > 20:
-        photo_refs_list = photo_refs_list[-20:]
-    
-    try:
-        if lane_hough_canvas.winfo_exists() and lane_hough_image_id:
-            lane_hough_canvas.itemconfig(lane_hough_image_id, image=photo_lane_hough)
-        
-        if lane_ml_canvas.winfo_exists() and lane_ml_image_id:
-            lane_ml_canvas.itemconfig(lane_ml_image_id, image=photo_lane_ml)
-        
-        if sign_canvas.winfo_exists() and sign_image_id:
-            sign_canvas.itemconfig(sign_image_id, image=photo_sign)
-        
-        if light_canvas.winfo_exists() and light_image_id:
-            light_canvas.itemconfig(light_image_id, image=photo_light)
-        
-        if vehicle_canvas.winfo_exists() and vehicle_image_id:
-            vehicle_canvas.itemconfig(vehicle_image_id, image=photo_vehicle)
-    except Exception as e:
-        print(f"Canvas update error: {e}")
 
     show_image(frame)
 
@@ -290,15 +253,12 @@ def load_all_models():
         return False
 
 def show_image(frame):
-    global main_photo, lane_ml_photo, sign_photo, light_detect_photo, light_class_photo, vehicle_ped_photo
+    global main_photo, lane_ml_photo, sign_photo, light_detect_class_photo, vehicle_ped_photo
     global frame_count, last_lane_update, last_sign_update, last_light_update, last_vehicle_update
 
     frame_count += 1
     
-    rgb_image = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
-
-    main_photo = numpy_to_tkinter(rgb_image)
-    main_canvas.itemconfig(main_image_id, image=main_photo)
+    rgb_image = frame
     
     if frame_count % 5 == 0 and frame_count - last_lane_update >= update_interval:
         try:
@@ -306,15 +266,27 @@ def show_image(frame):
             lane_image_hough = rgb_image.copy()
             
             if lane_results_hough is not None and isinstance(lane_results_hough, (list, tuple, np.ndarray)) and len(lane_results_hough) > 0:
+                print(f"Drawing {len(lane_results_hough)} lane lines")
                 for line in lane_results_hough:
                     if isinstance(line, tuple) and len(line) == 2:
                         cv.line(lane_image_hough, line[0], line[1], (255, 0, 0), 2)
+            else:
+                cv.putText(lane_image_hough, "No lanes detected", (50, 100), 
+                        cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                print("No lane lines detected")
+                
+                h, w = lane_image_hough.shape[:2]
+                for x in range(0, w, 50):
+                    cv.line(lane_image_hough, (x, 0), (x, h), (200, 200, 200), 1)
+                for y in range(0, h, 50):
+                    cv.line(lane_image_hough, (0, y), (w, y), (200, 200, 200), 1)
             
             cv.putText(lane_image_hough, f"Frame: {frame_count}", (10, 30), 
-                      cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                       
             lane_hough_photo = numpy_to_tkinter(lane_image_hough, "lane_hough")
-            lane_hough_canvas.create_image(0, 0, image=photo_refs["lane_hough"], anchor="nw")
+            lane_hough_canvas.itemconfig(lane_hough_image_id, image=lane_hough_photo)
+            last_lane_update = frame_count
         except Exception as e:
             print(f"Error in lane_detection_hough: {e}")
 
@@ -332,7 +304,7 @@ def show_image(frame):
     #                   cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                       
     #         lane_ml_photo = numpy_to_tkinter(lane_image_ml)
-    #         lane_ml_canvas.create_image(0, 0, image=lane_ml_photo, anchor="nw")
+    #         lane_ml_canvas.itemconfig(lane_ml_image_id, image=lane_ml_photo)
     #     except Exception as e:
     #         print(f"Error in lane_detection_ml: {e}")
     
@@ -348,9 +320,9 @@ def show_image(frame):
                         
                         if sign.get('verified', False):
                             color = (0, 255, 0)  # Green for verified signs (both models)
-                        elif 'classification_confidence' in sign and sign['classification_confidence'] > 0.7:
+                        elif 'classification_confidence' in sign and sign['classification_confidence'] > 0.6:
                             color = (0, 200, 0)  # Lighter green for high confidence
-                        elif 'classification_confidence' in sign and sign['classification_confidence'] > 0.4:
+                        elif 'classification_confidence' in sign and sign['classification_confidence'] > 0.6:
                             color = (0, 255, 255)  # Yellow for medium confidence
                         else:
                             color = (0, 160, 255)  # Orange for lower confidence
@@ -382,21 +354,15 @@ def show_image(frame):
                                     cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                       
             sign_photo = numpy_to_tkinter(sign_image, "sign")
-            sign_canvas.create_image(0, 0, image=photo_refs["sign"], anchor="nw")
+            sign_canvas.itemconfig(sign_image_id, image=sign_photo)
+            last_sign_update = frame_count
         except Exception as e:
             print(f"Error in sign_detection: {e}")
     
     elif frame_count % 5 == 3 and frame_count - last_light_update >= update_interval:
         try:
             thread_image = rgb_image.copy()
-            
-            processing_img = thread_image.copy()
-            cv.putText(processing_img, "Processing traffic lights...", (50, 50), 
-                    cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
-            light_detect_photo = numpy_to_tkinter(processing_img, "light")
-            light_canvas.create_image(0, 0, image=photo_refs["light"], anchor="nw")
-            light_window.update()
-            
+
             result_queue = queue.Queue()
             
             def traffic_light_worker():
@@ -418,8 +384,8 @@ def show_image(frame):
                 timeout_img = thread_image.copy()
                 cv.putText(timeout_img, "Detection Timeout!", (50, 50), 
                         cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
-                light_detect_photo = numpy_to_tkinter(timeout_img, "light")
-                light_canvas.create_image(0, 0, image=photo_refs["light"], anchor="nw")
+                light_detect_class_photo = numpy_to_tkinter(timeout_img, "light")
+                light_canvas.itemconfig(light_image_id, image=light_detect_class_photo)
                 last_light_update = frame_count
                 return
             
@@ -503,10 +469,9 @@ def show_image(frame):
                 cv.putText(light_detect_image, f"Frame: {frame_count}", (10, 30), 
                         cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                 
-                light_detect_photo = numpy_to_tkinter(light_detect_image, "light")
-                light_canvas.create_image(0, 0, image=photo_refs["light"], anchor="nw")
-                
-            last_light_update = frame_count
+                light_detect_class_photo = numpy_to_tkinter(light_detect_image, "light")
+                light_canvas.itemconfig(light_image_id, image=light_detect_class_photo)
+                last_light_update = frame_count
                 
         except Exception as e:
             print(f"Error in traffic light detection: {e}")
@@ -542,17 +507,10 @@ def show_image(frame):
                         cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
             vehicle_ped_photo = numpy_to_tkinter(vehicle_ped_image, "vehicle")
-            vehicle_canvas.create_image(0, 0, image=photo_refs["vehicle"], anchor="nw")
-
+            vehicle_canvas.itemconfig(vehicle_image_id, image=vehicle_ped_photo)
             last_vehicle_update = frame_count
         except Exception as e:
             print(f"Error in vehicle_pedestrian_detection: {e}")
-            
-    lane_hough_window.update()
-    light_window.update()
-    sign_window.update()
-    vehicle_window.update()
-    root.update()
 
 
 def detect_lanes_hough(frames):
@@ -560,9 +518,9 @@ def detect_lanes_hough(frames):
 
     print(f"Lane detection input shape: {frames.shape}, dtype: {frames.dtype}")
 
-    bgr_frames = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
+    frames_bgr = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
 
-    lane_hough_results = lane_detection(bgr_frames)
+    lane_hough_results = lane_detection(frames_bgr)
     print(f"Got lane results: {lane_hough_results[:2] if lane_hough_results else 'None'}")
 
     return lane_hough_results
@@ -577,9 +535,7 @@ def detect_lanes_hough(frames):
 def detect_class_traffic_lights(frames):
     from traffic_light_detect_class import combined_traffic_light_detection
 
-    bgr_frames = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
-
-    light_detect_results = combined_traffic_light_detection(bgr_frames)
+    light_detect_results = combined_traffic_light_detection(frames)
     print(f"Got traffic light results: {light_detect_results[:2] if light_detect_results else 'None'}")
 
     return light_detect_results
