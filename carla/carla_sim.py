@@ -48,6 +48,38 @@ def carla_simulation_setup():
     client.set_timeout(10.0)
     world = client.load_world('Town01')
 
+    traffic_manager = client.get_trafficmanager()
+    traffic_manager.set_synchronous_mode(True)
+
+    traffic_manager.set_random_device_seed(0)
+    random.seed(0)
+
+    spectator = world.get_spectator()
+
+    spawn_points = world.get_map().get_spawn_points()
+
+    for i, spawn_point in enumerate(spawn_points):
+        world.debug.draw_string(spawn_point.location, str(i), life_time=10)
+
+    models = ['dodge', 'audi', 'model3', 'mini', 'mustang', 'lincoln', 'prius', 'nissan', 'crown', 'impala']
+    blueprints = []
+    for vehicle in world.get_blueprint_library().filter('*vehicle*'):
+        if any(model in vehicle.id for model in models):
+            blueprints.append(vehicle)
+
+    max_vehicles = 10
+    max_vehicles = min([max_vehicles, len(spawn_points)])
+    vehicles = []
+
+    for i, spawn_point in enumerate(random.sample(spawn_points, max_vehicles)):
+        temp = world.try_spawn_actor(random.choice(blueprints), spawn_point)
+        if temp is not None:
+            vehicles.append(temp)
+
+    for vehicle in vehicles:
+        vehicle.set_autopilot(True)
+        traffic_manager.ignore_lights_percentage(vehicle, random.randint(0,50))
+
     blueprint_library = world.get_blueprint_library()
     spawn_point = random.choice(world.get_map().get_spawn_points())
     vehicle_bp = blueprint_library.filter('vehicle.audi.etron')[0]
@@ -265,21 +297,15 @@ def show_image(frame):
             lane_results_hough = detect_lanes_hough(rgb_image)
             lane_image_hough = rgb_image.copy()
             
-            if lane_results_hough is not None and isinstance(lane_results_hough, (list, tuple, np.ndarray)) and len(lane_results_hough) > 0:
+            if lane_results_hough is not None and isinstance(lane_results_hough, (list, tuple)) and len(lane_results_hough) > 0:
                 print(f"Drawing {len(lane_results_hough)} lane lines")
                 for line in lane_results_hough:
                     if isinstance(line, tuple) and len(line) == 2:
                         cv.line(lane_image_hough, line[0], line[1], (255, 0, 0), 2)
             else:
+                print("No lane lines detected")
                 cv.putText(lane_image_hough, "No lanes detected", (50, 100), 
                         cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                print("No lane lines detected")
-                
-                h, w = lane_image_hough.shape[:2]
-                for x in range(0, w, 50):
-                    cv.line(lane_image_hough, (x, 0), (x, h), (200, 200, 200), 1)
-                for y in range(0, h, 50):
-                    cv.line(lane_image_hough, (0, y), (w, y), (200, 200, 200), 1)
             
             cv.putText(lane_image_hough, f"Frame: {frame_count}", (10, 30), 
                     cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -515,8 +541,6 @@ def show_image(frame):
 
 def detect_lanes_hough(frames):
     from lane_detection_hough import lane_detection
-
-    print(f"Lane detection input shape: {frames.shape}, dtype: {frames.dtype}")
 
     frames_bgr = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
 

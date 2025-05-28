@@ -89,8 +89,6 @@ def classify_sign_crop(sign_crop):
         else:
             classification = f"Class {class_idx}"
 
-        print("class_idx:", class_idx)
-        print("class_descriptions:", class_descriptions)
         print("classification:", classification)
         print("pred[0]:", pred[0])
         
