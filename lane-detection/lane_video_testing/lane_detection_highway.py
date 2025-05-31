@@ -93,6 +93,12 @@ prev_left_degree = 1
 prev_right_curve = None
 prev_right_degree = 1
 
+prev_left_base = None
+prev_right_base = None
+lane_history_size = 10
+left_base_history = []
+right_base_history = []
+
 def fit_lane_curve(xs, ys):
     if len(xs) < 2:
         return None, 1
@@ -231,6 +237,27 @@ def transform_points_back(points, matrix):
     
     return [tuple(map(int, pt[0])) for pt in transformed_pts]
 
+def find_lane_base_points(warped_image, previous_left=None, previous_right=None):
+    histogram = np.sum(warped_image[warped_image.shape[0]//2:,:], axis=0)
+    
+    car_position = warped_image.shape[1] // 2
+    
+    search_window = int(warped_image.shape[1] * 0.15)
+    
+    left_search_start = max(0, car_position - search_window * 2)
+    left_search_end = car_position - int(search_window * 0.5)
+    
+    right_search_start = car_position + int(search_window * 0.5)
+    right_search_end = min(warped_image.shape[1], car_position + search_window * 2)
+    
+    left_histogram = histogram[left_search_start:left_search_end]
+    leftx_base = left_search_start + np.argmax(left_histogram) if np.max(left_histogram) > 0 else previous_left
+    
+    right_histogram = histogram[right_search_start:right_search_end]
+    rightx_base = right_search_start + np.argmax(right_histogram) if np.max(right_histogram) > 0 else previous_right
+    
+    return leftx_base, rightx_base, histogram
+
 def create_lane_path(image, left_points, right_points):
     lane_path = np.zeros_like(image)
     
@@ -262,6 +289,7 @@ def display_lane_lines(image, left_points, right_points):
 
 def lane_detection(frame):
     global prev_left_curve, prev_left_degree, prev_right_curve, prev_right_degree
+    global prev_left_base, prev_right_base, left_base_history, right_base_history
     height, width = frame.shape[:2]
     
     processed_image = preprocess_image(frame)
@@ -271,7 +299,27 @@ def lane_detection(frame):
     warped_image, transform_matrix = perspective_transform(roi_image)
     binary = enhance_lane_from_color(warped_image)
 
-    left_base_x, right_base_x, _ = find_lane_base_points(binary)
+    left_base_x, right_base_x, histogram = find_lane_base_points(binary, prev_left_base, prev_right_base)
+
+    if prev_left_base is not None and abs(left_base_x - prev_left_base) > binary.shape[1] * 0.1:
+        left_base_x = prev_left_base
+    
+    if prev_right_base is not None and abs(right_base_x - prev_right_base) > binary.shape[1] * 0.1:
+        right_base_x = prev_right_base
+    
+    left_base_history.append(left_base_x)
+    right_base_history.append(right_base_x)
+    
+    if len(left_base_history) > lane_history_size:
+        left_base_history.pop(0)
+    if len(right_base_history) > lane_history_size:
+        right_base_history.pop(0)
+    
+    left_base_x = int(np.mean(left_base_history))
+    right_base_x = int(np.mean(right_base_history))
+    
+    prev_left_base = left_base_x
+    prev_right_base = right_base_x
     
     lines = cv.HoughLinesP(
         binary,
@@ -285,7 +333,14 @@ def lane_detection(frame):
     left_points_x, left_points_y, right_points_x, right_points_y = [], [], [], []
 
     if lines is not None:
-        height = binary.shape[0]
+        window_width = binary.shape[1] * 0.07
+        
+        left_window_min = max(0, left_base_x - window_width)
+        left_window_max = left_base_x + window_width
+        
+        right_window_min = right_base_x - window_width
+        right_window_max = min(binary.shape[1], right_base_x + window_width)
+        
         for line in lines:
             x1, y1, x2, y2 = line.reshape(4)
             if abs(x2 - x1) < 1:
@@ -293,14 +348,12 @@ def lane_detection(frame):
                 
             slope = (y2 - y1) / (x2 - x1)
             mid_x = (x1 + x2) / 2
+            length = np.sqrt((y2 - y1)**2 + (x2 - x1)**2)
             
-            left_margin = left_base_x * 0.8
-            right_margin = right_base_x * 1.2
-            
-            if slope < -0.1 and mid_x < left_margin * 1.5:
+            if slope < -0.1 and left_window_min < mid_x < left_window_max and length > 10:
                 left_points_x.extend([x1, x2])
                 left_points_y.extend([y1, y2])
-            elif slope > 0.1 and mid_x > right_margin * 0.8:
+            elif slope > 0.1 and right_window_min < mid_x < right_window_max and length > 10:
                 right_points_x.extend([x1, x2])
                 right_points_y.extend([y1, y2])
 
@@ -313,9 +366,9 @@ def lane_detection(frame):
         prev_right_curve, prev_right_degree = right_curve, right_degree
 
     left_points, right_points = [], []
-    y_start = int(height * 0.65)
+    y_start = int(height * 0.25)
     y_end = height
-    num_points = 25
+    num_points = 45
     y_coords = np.linspace(y_start, y_end, num_points)
 
     if left_curve is not None:
@@ -346,8 +399,8 @@ def lane_detection(frame):
     cv.imshow("Binary Image", cv.resize(binary, (400, 300)))
 
     plt_histogram = np.zeros((400, binary.shape[1], 3), dtype=np.uint8)
-    if np.max(_) > 0:
-        hist_normalized = _/np.max(_)*300
+    if np.max(histogram) > 0:
+        hist_normalized = histogram/np.max(histogram)*300
         for i in range(binary.shape[1]):
             if hist_normalized[i] > 0:
                 cv.line(plt_histogram, (i, 399), (i, 399-int(hist_normalized[i])), (0, 0, 255), 1)
@@ -370,6 +423,16 @@ def lane_detection(frame):
         x_int, y_int = int(x), int(y)
         if 0 <= x_int < point_debug.shape[1] and 0 <= y_int < point_debug.shape[0]:
             cv.circle(point_debug, (x_int, y_int), 5, (0, 0, 255), -1)
+
+    cv.rectangle(point_debug, 
+             (int(left_window_min), 0), 
+             (int(left_window_max), binary.shape[0]),
+             (0, 255, 255), 2)  # Yellow rectangle
+             
+    cv.rectangle(point_debug, 
+                (int(right_window_min), 0), 
+                (int(right_window_max), binary.shape[0]),
+                (0, 255, 255), 2)  # Yellow rectangle
     
     cv.imshow("Detected Points", cv.resize(point_debug, (400, 300)))
     
