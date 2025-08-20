@@ -8,7 +8,7 @@ A modular Python project for autonomous driving research and prototyping. This s
 - 🛑 Traffic sign classification & detection (CNN, YOLOv8, GTRSB, LISA, Mapillary)
 - 🚦 Traffic light detection & classification (YOLOv8, DLDT, LISA)
 - 🚗 Vehicle & pedestrian detection and recognition (YOLOv8, SCNN, BDD100K)
-- 🧠 Multi-model inference, real-time simulation, and visualization (Pygame, CARLA)
+- 🧠 Multi-model inference, real-time simulation, and visualization (CARLA, Tkinter)
 
 Features robust training pipelines, multi-model inference, and a flexible folder structure for easy experimentation and extension.
 
@@ -25,7 +25,7 @@ Features robust training pipelines, multi-model inference, and a flexible folder
 -  Traffic sign classification using CNN
 -  Traffic light detection (YOLO) + classification
 -  Video-based inference pipeline
--  Multi-window simulation using Pygame
+-  Multi-window simulation using Carla and Tkinter
 - 🚀 Coming soon: CARLA integration & real-time testing
 
 ## 🛠️ Built With
@@ -43,6 +43,25 @@ Features robust training pipelines, multi-model inference, and a flexible folder
 - **Mapillary** for sign detection
 - **BDD** for vehicle and pedestrian detection
 
+## 📚 Datasets & Sources
+- **Lane Detection:**
+  - CU Lane Dataset (`datasets/lane-detection/`)
+  - Processed Culane with sorted masks, images, and annotations (`lane-detection/processed/`, Raw Dataset `lane-detection/raw/`)
+- **Traffic Sign Classification:**
+  - GTSRB Dataset
+- **Traffic Sign Detection:**
+  - Unprocessed Mapillary Sign Dataset (`datasets/traffic-sign/raw`)
+  - Processed dataset for yolov8 format (`datasets/traffic-sign/processed-yolo/`)
+- **Traffic Light Detection & Classification:**
+  - Unprocessed DLDT & LISA Datasets (`datasets/traffic-light/raw`)
+  - Combined DLDT & LISA datasets sorted by light state(`datasets/traffic-light/processed/merged_dataset`)
+  - Combined Dataset processed for YOLO training(`datasets/traffic-light/processed/yolo_dataset`)
+- **Vehicle & Pedestrian Detection:**
+  - BDD100K (Not in repo due to size, can be found on kaggle profile) (`datasets/vehicle-pedestrian/`)
+- **Debug Visualizations:**
+  - Traffic light debug visualizations (`datasets/traffic-light/debug_visualizations/`)
+  - Results visualizations (`results/traffic-sign-classification/visualizations/`, `results/vehicle-pedestrian/visualizations/`)
+
 ## 📊 Results
 
 | Model        | Task                               | Accuracy / IoU | Dataset   |    Size    | Epochs   |
@@ -55,34 +74,40 @@ Features robust training pipelines, multi-model inference, and a flexible folder
 | YOLO         | Vehicle & Pedestrian detection     | IoU x          | BDD       | 100k       |30        |
 
 
-## 🚀 Roadmap
 
-**Completed**
-- [x] Sign classification (CNN)
-- [x] Traffic light classification
-- [x] Lane detection (U-Net, SCNN, Hough)
+## ⚡ Quickstart & Usage
 
-**In Progress / Near-Term**
-- [ ] Integrate all models into Pygame simulation
-- [ ] Complete CARLA test scenario
-- [ ] Improve SCNN/U-Net lane classification performance & accuracy
-- [ ] Cleanup and modularize CARLA pipeline
-- [ ] Integrate vehicle control (autonomous driving logic)
-- [ ] Add evaluation scripts for all modules
-- [ ] Documentation improvements (usage, troubleshooting, contributing)
-- [ ] Test on real-world car (hardware integration, data collection)
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **Run a demo:**
+   ```bash
+   python carla/carla_sim.py
+   ```
+3. **Train a model:**
+   See notebooks or scripts in each module folder.
 
-**Future / Stretch Goals**
-- [ ] Real-time sensor fusion (camera, LiDAR, radar)
-- [ ] Multi-camera support (360° perception)
-- [ ] End-to-end driving policy learning (RL, imitation learning)
-- [ ] Advanced traffic participant prediction (trajectory, intent)
-- [ ] Domain adaptation for adverse weather/night conditions
-- [ ] Cloud-based training and deployment (model serving, API)
-- [ ] Mobile/embedded deployment (Raspberry Pi, Jetson)
-- [ ] Integration with ROS (Robot Operating System)
-- [ ] Interactive web dashboard for results/visualizations
-- [ ] Community dataset and model sharing platform
+## 📝 Setup & Installation
+- Python 3.8+
+- See `requirements.txt` for all dependencies
+- Optional: CARLA simulator for advanced testing ([Download](https://carla.readthedocs.io/en/latest/download/))
+- 
+
+## 🧠 Model Details
+All Models are located in the models folder
+- **Lane Detection:** Hough Transform, SCNN (lane-detection-cnn/)
+- **Traffic Sign Classification:** CNN classifier, 
+- **Traffic Sign Detector:** YOLO detector (traffic_sign/)
+- **Traffic Light Detect/Class:** YOLOv8 detector, classifier (traffic-lights/)
+- **Vehicle/Pedestrian:** YOLOv8, SCNN (vehicle-pedestrian-detection/)
+
+## 📊 Results
+- All training results, metrics, and visualizations are in `results/`
+- Example:
+  - `results/traffic-sign-classification/metrics/` (JSON, curves)
+  - `results/traffic-sign-detection/weights/` (YOLO checkpoints)
+  - `results/vehicle-pedestrian/visualizations/` (confusion matrices, sample batches)
 
 ## 📂 Folder Structure
 
@@ -113,57 +138,6 @@ self-driving-car-simulation/
 
 </details>
 
-## ⚡ Quickstart & Usage
-
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Run a demo:**
-   ```bash
-   python carla/carla_sim.py
-   ```
-3. **Train a model:**
-   See notebooks or scripts in each module folder.
-
-## 📝 Setup & Installation
-- Python 3.8+
-- See `requirements.txt` for all dependencies
-- Optional: CARLA simulator for advanced testing ([Download](https://carla.readthedocs.io/en/latest/download/))
-- 
-
-## 🧠 Model Details
-- **Lane Detection:** Hough Transform, SCNN (lane-detection-cnn/)
-- **Traffic Sign:** CNN classifier, YOLOv8 detector (traffic_sign/)
-- **Traffic Light:** YOLOv8 detector, classifier (traffic-lights/)
-- **Vehicle/Pedestrian:** YOLOv8, SCNN (vehicle-pedestrian-detection/)
-
-## 📚 Datasets & Sources
-- **Lane Detection:**
-  - CU Lane Dataset (`datasets/lane-detection/`)
-  - Processed Culane with sorted masks, images, and annotations (`lane-detection/processed/`, Raw Dataset `lane-detection/raw/`)
-- **Traffic Sign Classification:**
-  - GTSRB Dataset
-- **Traffic Sign Detection:**
-  - Unprocessed Mapillary Sign Dataset (`datasets/traffic-sign/raw`)
-  - Processed dataset for yolov8 format (`datasets/traffic-sign/processed-yolo/`)
-- **Traffic Light Detection & Classification:**
-  - Unprocessed DLDT & LISA Datasets (`datasets/traffic-light/raw`)
-  - Combined DLDT & LISA datasets sorted by light state(`datasets/traffic-light/processed/merged_dataset`)
-  - Combined Dataset processed for YOLO training(`datasets/traffic-light/processed/yolo_dataset`)
-- **Vehicle & Pedestrian Detection:**
-  - BDD100K (Not in repo due to size, can be found on kaggle profile) (`datasets/vehicle-pedestrian/`)
-- **Debug Visualizations:**
-  - Traffic light debug visualizations (`datasets/traffic-light/debug_visualizations/`)
-  - Results visualizations (`results/traffic-sign-classification/visualizations/`, `results/vehicle-pedestrian/visualizations/`)
-
-## 📊 Results
-- All training results, metrics, and visualizations are in `results/`
-- Example:
-  - `results/traffic-sign-classification/metrics/` (JSON, curves)
-  - `results/traffic-sign-detection/weights/` (YOLO checkpoints)
-  - `results/vehicle-pedestrian/visualizations/` (confusion matrices, sample batches)
-
 ## 🚀 Roadmap
 
 **Completed**
@@ -175,7 +149,7 @@ self-driving-car-simulation/
 - [ ] Integrate all models into Carla simulation
 - [ ] Complete CARLA test scenario
 - [ ] Improve SCNN/U-Net lane classification performance & accuracy
-- [ ] Cleanup CARLA pipeline
+- [ ] Cleanup and modularize CARLA pipeline
 - [ ] Integrate vehicle control (autonomous driving logic)
 - [ ] Add evaluation scripts for all modules
 - [ ] Documentation improvements (usage, troubleshooting)
