@@ -34,13 +34,11 @@ Features robust training pipelines, multi-model inference, and a flexible folder
 - OpenCV
 - YOLOv8 (Ultralytics)
 - Python
-- Pygame
 - CARLA (planned)
 
 ## 📚 Datasets Used
 
 - **CU Lane Dataset** for lane segmentation
-- **LISA Traffic Sign Dataset** for sign classification
 - **DLDT / LISA** for traffic light classification & detection
 - **Mapillary** for sign detection
 - **BDD** for vehicle and pedestrian detection
@@ -57,13 +55,34 @@ Features robust training pipelines, multi-model inference, and a flexible folder
 | YOLO         | Vehicle & Pedestrian detection     | IoU x          | BDD       | 100k       |30        |
 
 
-## 🛣️ Roadmap
+## 🚀 Roadmap
 
+**Completed**
 - [x] Sign classification (CNN)
 - [x] Traffic light classification
 - [x] Lane detection (U-Net, SCNN, Hough)
-- [ ] Integrate all models into Pygame
+
+**In Progress / Near-Term**
+- [ ] Integrate all models into Pygame simulation
 - [ ] Complete CARLA test scenario
+- [ ] Improve SCNN/U-Net lane classification performance & accuracy
+- [ ] Cleanup and modularize CARLA pipeline
+- [ ] Integrate vehicle control (autonomous driving logic)
+- [ ] Add evaluation scripts for all modules
+- [ ] Documentation improvements (usage, troubleshooting, contributing)
+- [ ] Test on real-world car (hardware integration, data collection)
+
+**Future / Stretch Goals**
+- [ ] Real-time sensor fusion (camera, LiDAR, radar)
+- [ ] Multi-camera support (360° perception)
+- [ ] End-to-end driving policy learning (RL, imitation learning)
+- [ ] Advanced traffic participant prediction (trajectory, intent)
+- [ ] Domain adaptation for adverse weather/night conditions
+- [ ] Cloud-based training and deployment (model serving, API)
+- [ ] Mobile/embedded deployment (Raspberry Pi, Jetson)
+- [ ] Integration with ROS (Robot Operating System)
+- [ ] Interactive web dashboard for results/visualizations
+- [ ] Community dataset and model sharing platform
 
 ## 📂 Folder Structure
 
@@ -110,7 +129,8 @@ self-driving-car-simulation/
 ## 📝 Setup & Installation
 - Python 3.8+
 - See `requirements.txt` for all dependencies
-- Optional: CARLA simulator for advanced testing
+- Optional: CARLA simulator for advanced testing ([Download](https://carla.readthedocs.io/en/latest/download/))
+- 
 
 ## 🧠 Model Details
 - **Lane Detection:** Hough Transform, SCNN (lane-detection-cnn/)
@@ -145,14 +165,29 @@ self-driving-car-simulation/
   - `results/vehicle-pedestrian/visualizations/` (confusion matrices, sample batches)
 
 ## 🚀 Roadmap
+
+**Completed**
 - [x] Sign classification (CNN)
 - [x] Traffic light classification
 - [x] Lane detection (U-Net, SCNN, Hough)
-- [ ] Integrate all models into Pygame
+
+**In Progress / Near-Term**
+- [ ] Integrate all models into Carla simulation
 - [ ] Complete CARLA test scenario
-- [ ] SCNN lane model integration
-- [ ] Evaluation scripts for all modules
-- [ ] Documentation improvements
+- [ ] Improve SCNN/U-Net lane classification performance & accuracy
+- [ ] Cleanup CARLA pipeline
+- [ ] Integrate vehicle control (autonomous driving logic)
+- [ ] Add evaluation scripts for all modules
+- [ ] Documentation improvements (usage, troubleshooting)
+- [ ] Test on real-world car (hardware integration, data collection)
+
+**Future / Stretch Goals**
+- [ ] Real-time sensor fusion (camera, LiDAR, radar)
+- [ ] Multi-camera support (360° perception)
+- [ ] End-to-end driving policy learning (RL, imitation learning)
+- [ ] Advanced traffic participant prediction (trajectory, intent)
+- [ ] Integration with ROS (Robot Operating System)
+- [ ] Interactive web dashboard for results/visualizations
 
 ## 🤝 Contributing
 - Pull requests welcome!
@@ -160,9 +195,5 @@ self-driving-car-simulation/
 
 ## 🙏 Credits
 - Datasets: CU Lane, LISA, GTRSB, Mapillary, BDD100K
-- Models: Ultralytics YOLOv8, SCNN, custom CNNs
-- Simulation: CARLA, Pygame
-
-## 📅 Changelog
-- Aug 2025: Major README overhaul, new folder structure, improved lane detection, robust GUI, generator-based training
-- May-Jul 2025: Model improvements, new datasets, CARLA integration
+- Models: Ultralytics YOLOv8, custom CNNs
+- Simulation: CARLA
