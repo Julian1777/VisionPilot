@@ -3,9 +3,11 @@ import numpy as np
 import time
 from ultralytics import YOLO
 import random
+from config.config import VEHICLE_PEDESTRIAN_MODEL, VIDEOS_DIR
 
-MODEL_PATH = "vehicle_pedestrian_detection.pt"
-VIDEO_PATH = "ams_driving_cropped.mp4"
+
+MODEL_PATH = VEHICLE_PEDESTRIAN_MODEL
+VIDEO_PATH = VIDEOS_DIR / "clips" / "city" / "ams-cut.mp4"
 
 def process_video():
     try:
@@ -58,7 +60,7 @@ def process_video():
             
         frame_count += 1
         
-        results = model(frame, conf=0.30, iou=0.45)
+        results = model(frame, conf=0.60, iou=0.45)
         
         for result in results:
             boxes = result.boxes

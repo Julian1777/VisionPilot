@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 IMG_SIZE = (224, 224)
 LANE_MODEL_PATH = 'lane_detection_model.h5'
-TEST_IMAGE_PATH = './test_images/lane2.jpg'
+TEST_IMAGE_PATH = 'C:\\Users\\user\\Documents\\github\\self-driving-car-simulation\\images\\lane-detection-cnn\\demo\\lane.jpeg'
 
 def test_model():
     image = cv.imread(TEST_IMAGE_PATH)
