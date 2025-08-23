@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
-from lane_detection_hough import lane_detection
-from lane_detection_model import predict_lane
+from carla.scripts.lane_detection_hough import lane_detection
+from carla.scripts.lane_detection_model import predict_lane
 from sign_detection import predict_sign
 from traffic_light_detect import detect_traffic_light
 from traffic_light_class import predict_traffic_light

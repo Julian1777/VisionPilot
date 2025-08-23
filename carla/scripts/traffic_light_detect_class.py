@@ -3,14 +3,15 @@ import tensorflow as tf
 import numpy as np
 from ultralytics import YOLO
 import cv2 as cv
-
 import sys
 
-from traffic_light_class_cv import classify_traffic_light_crop
-from vehicle_pedestrian_detection import detect_vehicles_pedestrians
+from scripts.traffic_light_class_cv import classify_traffic_light_crop
+from scripts.vehicle_pedestrian_detection import detect_vehicles_pedestrians
+
+from config.config import LIGHT_DETECTION_CLASSIFICATION_MODEL
 
 IMG_SIZE = (224, 224)
-LIGHT_MODEL_PATH = os.path.join("model", "traffic_light_detect_class.pt")
+LIGHT_MODEL_PATH = str(LIGHT_DETECTION_CLASSIFICATION_MODEL)
 
 def get_models_dict():
     try:

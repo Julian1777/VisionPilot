@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import carla
 import tkinter as tk
 import numpy as np
@@ -51,15 +54,33 @@ def carla_simulation_setup():
     traffic_manager = client.get_trafficmanager()
     traffic_manager.set_synchronous_mode(True)
 
-    traffic_manager.set_random_device_seed(0)
-    random.seed(0)
-
     spectator = world.get_spectator()
 
-    spawn_points = world.get_map().get_spawn_points()
+    carla_map = world.get_map()
+    spawn_points = carla_map.get_spawn_points()
 
-    for i, spawn_point in enumerate(spawn_points):
-        world.debug.draw_string(spawn_point.location, str(i), life_time=10)
+    route_waypoints = carla_route_generation(spawn_points, carla_map, world)
+
+    blueprint_library = world.get_blueprint_library()
+    vehicle_bp = blueprint_library.filter('vehicle.audi.etron')[0]
+
+    carla_vehicle = None
+    for idx, spawn_point in enumerate(spawn_points):
+        carla_vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
+        if carla_vehicle is not None:
+            print(f"Spawned vehicle at map spawn point {idx}: {spawn_point.location}")
+            break
+
+    if carla_vehicle is None:
+        print("ERROR: Could not spawn vehicle at any map spawn point!")
+        return
+
+    carla_vehicle.set_transform(route_waypoints[0].transform)
+
+    carla_vehicle.set_autopilot(True, traffic_manager.get_port())
+    traffic_manager.set_path(carla_vehicle, [wp.transform.location for wp in route_waypoints])
+
+    traffic_manager.global_percentage_speed_difference(50.0)
 
     models = ['dodge', 'audi', 'model3', 'mini', 'mustang', 'lincoln', 'prius', 'nissan', 'crown', 'impala']
     blueprints = []
@@ -75,15 +96,12 @@ def carla_simulation_setup():
         temp = world.try_spawn_actor(random.choice(blueprints), spawn_point)
         if temp is not None:
             vehicles.append(temp)
+            print(f"Spawned traffic vehicle {i} at {spawn_point.location}")
 
-    for vehicle in vehicles:
+    print(f"Total traffic vehicles spawned: {len(vehicles)}")
+    for i, vehicle in enumerate(vehicles):
         vehicle.set_autopilot(True)
-        traffic_manager.ignore_lights_percentage(vehicle, random.randint(0,50))
-
-    blueprint_library = world.get_blueprint_library()
-    spawn_point = random.choice(world.get_map().get_spawn_points())
-    vehicle_bp = blueprint_library.filter('vehicle.audi.etron')[0]
-    carla_vehicle = world.spawn_actor(vehicle_bp, spawn_point)
+        print(f"Registered vehicle {i} with Traffic Manager (ID: {vehicle.id})")
 
     camera_bp = blueprint_library.find('sensor.camera.rgb')
     camera_bp.set_attribute('image_size_x', '800')
@@ -112,6 +130,35 @@ def carla_simulation_setup():
     spectator.set_transform(transform)
 
     main_image_id = main_canvas.create_image(0, 0, anchor=tk.NW)
+
+    return world
+
+def carla_route_generation(spawn_points, carla_map, world):
+    start = spawn_points[0].location
+    end = spawn_points[10].location
+
+    start_waypoint = carla_map.get_waypoint(start)
+    end_waypoint = carla_map.get_waypoint(end)
+
+    route_waypoints = [start_waypoint]
+    current_waypoint = start_waypoint
+
+    max_steps = 1000
+    steps = 0
+    while current_waypoint.transform.location.distance(end) > 2.0 and steps < max_steps:
+        next_waypoints = current_waypoint.next(2.0)
+        if not next_waypoints:
+            break
+        current_waypoint = next_waypoints[0]
+        route_waypoints.append(current_waypoint)
+        steps += 1
+
+
+    for waypoint in route_waypoints:
+        world.debug.draw_point(waypoint.transform.location, size=0.08, color=carla.Color(0,0,255), life_time=60.0)
+        print(waypoint.transform.location)
+
+    return route_waypoints
 
 
 photo_refs = {}
@@ -162,32 +209,6 @@ def carla_front_camera_callback(image):
     frame = np.array(frame, copy=True)
 
     show_image(frame)
-
-def on_key(event):
-    global current_control, carla_vehicle
-    key = event.keysym.lower()
-    if key == 'w':
-        current_control.throttle = min(current_control.throttle + 0.05, 1.0)
-    elif key == 's':
-        current_control.brake = min(current_control.brake + 0.1, 1.0)
-    elif key == 'a':
-        current_control.steer = max(current_control.steer - 0.05, -1.0)
-    elif key == 'd':
-        current_control.steer = min(current_control.steer + 0.05, 1.0)
-    elif key == 'space':
-        current_control = carla.VehicleControl()  # Reset controls
-    if carla_vehicle:
-        carla_vehicle.apply_control(current_control)
-
-def on_key_release(event):
-    global current_control, carla_vehicle
-    key = event.keysym.lower()
-    if key in ['a', 'd']:
-        current_control.steer = 0.0
-    if key in ['s']:
-        current_control.brake = 0.0
-    if carla_vehicle:
-        carla_vehicle.apply_control(current_control)
 
 vehicle_window = None
 lane_hough_window = None
@@ -245,9 +266,6 @@ sign_image_id = sign_canvas.create_image(0, 0, anchor=tk.NW)
 light_image_id = light_canvas.create_image(0, 0, anchor=tk.NW)
 vehicle_image_id = vehicle_canvas.create_image(0, 0, anchor=tk.NW)
 
-root.bind("<KeyPress>", on_key)
-root.bind("<KeyRelease>", on_key_release)
-
 @register_keras_serializable()
 def random_brightness(x):
     return tf.image.random_brightness(x, max_delta=0.2)
@@ -256,24 +274,22 @@ def load_all_models():
     try:
         print("Loading models, please wait...")
 
-        # Load vehicle and pedestrian detection model
-        vehicle_model_path = os.path.join("model", "vehicle_pedestrian_detection.pt")
+        from config.config import VEHICLE_PEDESTRIAN_MODEL, SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, LIGHT_DETECTION_CLASSIFICATION_MODEL
+
+        vehicle_model_path = str(VEHICLE_PEDESTRIAN_MODEL)
         if not os.path.exists(vehicle_model_path):
             print(f"ERROR: Model file not found: {vehicle_model_path}")
             return False
-        MODELS['vehicle'] = YOLO(os.path.join("model", "vehicle_pedestrian_detection.pt"))
+        MODELS['vehicle'] = YOLO(vehicle_model_path)
         print("Vehicle detection model loaded")
-        
-        # Load sign detection model
-        MODELS['sign_detect'] = YOLO(os.path.join("model", "sign_detection.pt"))
+
+        MODELS['sign_detect'] = YOLO(str(SIGN_DETECTION_MODEL))
         print("Sign detection model loaded")
-        
-        # Load sign classification model
-        MODELS['sign_classify'] = tf.keras.models.load_model(os.path.join("model", "traffic_sign_classification.h5"), compile=False, custom_objects={"random_brightness": random_brightness})
+
+        MODELS['sign_classify'] = tf.keras.models.load_model(str(SIGN_CLASSIFICATION_MODEL), compile=False, custom_objects={"random_brightness": random_brightness})
         print("Sign classification model loaded")
-        
-        # Load traffic light detection model
-        MODELS['traffic_light'] = YOLO(os.path.join("model", "traffic_light_detect_class.pt"))
+
+        MODELS['traffic_light'] = YOLO(str(LIGHT_DETECTION_CLASSIFICATION_MODEL))
         print("Traffic light model loaded")
         
         print("All models loaded successfully!")
@@ -540,7 +556,7 @@ def show_image(frame):
 
 
 def detect_lanes_hough(frames):
-    from lane_detection_hough import lane_detection
+    from scripts.lane_detection_hough import lane_detection
 
     frames_bgr = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
 
@@ -557,7 +573,7 @@ def detect_lanes_hough(frames):
 #     return lane_ml_results
 
 def detect_class_traffic_lights(frames):
-    from traffic_light_detect_class import combined_traffic_light_detection
+    from scripts.traffic_light_detect_class import combined_traffic_light_detection
 
     light_detect_results = combined_traffic_light_detection(frames)
     print(f"Got traffic light results: {light_detect_results[:2] if light_detect_results else 'None'}")
@@ -565,7 +581,7 @@ def detect_class_traffic_lights(frames):
     return light_detect_results
 
 def detect_classify_signs(frames):
-    from sign_detection_classification import combined_sign_detection_classification
+    from scripts.sign_detection_classification import combined_sign_detection_classification
 
     sign_results = combined_sign_detection_classification(frames)
     print(f"Got sign results: {sign_results[:2] if sign_results else 'None'}")
@@ -573,7 +589,7 @@ def detect_classify_signs(frames):
     return sign_results
 
 def detect_vehicles_pedestrians(frames):
-    from vehicle_pedestrian_detection import detect_vehicles_pedestrians
+    from scripts.vehicle_pedestrian_detection import detect_vehicles_pedestrians
 
     print(f"Vehicle detection input shape: {frames.shape}, dtype: {frames.dtype}")
 
@@ -603,7 +619,19 @@ def main():
         print("Failed to load models. Exiting...")
         return
 
-    carla_simulation_setup()
+    carla_world = carla_simulation_setup()
+
+    def tick_loop(world):
+        while True:
+            try:
+                print("Ticking world...")
+                world.tick()
+                time.sleep(0.05)
+            except Exception as e:
+                print(f"Tick loop error: {e}")
+                break
+
+    threading.Thread(target=tick_loop, args=(carla_world,), daemon=True).start()
 
     root.mainloop()
 

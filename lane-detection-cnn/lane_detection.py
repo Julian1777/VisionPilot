@@ -57,13 +57,13 @@ if not IS_KAGGLE:
  
 
 MAX_SAMPLES = 20000
-IMG_SIZE = (512, 256)
+IMG_SIZE = (512, 256)  # Maintained the recommended aspect ratio
 INPUT_SHAPE = (IMG_SIZE[0], IMG_SIZE[1], 3)
-BATCH_SIZE = 16
+BATCH_SIZE = 15  # Changed to match recommendation
 SHUFFLE_BUFFER_SIZE = 1000
 POS_WEIGHT = 67
 SEED = 123
-EPOCHS = 30
+EPOCHS = 100  # Increased as per recommendation
 
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 
@@ -111,17 +111,37 @@ def weighted_dice_loss(y_true, y_pred, pos_weight=POS_WEIGHT):
     
     return 1 - (2. * intersection + smooth) / (weighted_sum + smooth)
 
+def focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25):
+    """
+    Focal Loss for dealing with class imbalance.
+    FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
+    """
+    y_pred = tf.clip_by_value(y_pred, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
+    
+    # For positive samples
+    pos_loss = -alpha * tf.math.pow(1 - y_pred, gamma) * y_true * tf.math.log(y_pred)
+    
+    # For negative samples
+    neg_loss = -(1 - alpha) * tf.math.pow(y_pred, gamma) * (1 - y_true) * tf.math.log(1 - y_pred)
+    
+    return tf.reduce_mean(pos_loss + neg_loss)
+
 def combined_loss(y_true, y_pred, pos_weight=POS_WEIGHT):
-    bce = weighted_binary_crossentropy(y_true, y_pred, pos_weight)
+    # Triple lane pixel weighting for sharper segmentation
+    increased_weight = pos_weight * 4.5
     
-    dice = weighted_dice_loss(y_true, y_pred, pos_weight)
+    # Combine multiple losses with different weights
+    bce = weighted_binary_crossentropy(y_true, y_pred, increased_weight)
+    dice = weighted_dice_loss(y_true, y_pred, increased_weight)
+    focal = focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25)
     
-    loss = 0.5 * bce + 0.5 * dice
+    # Weighted combination of losses (focal loss gets more weight to focus on hard examples)
+    loss = 0.4 * bce + 0.4 * dice + 0.2 * focal
     
     return tf.cast(loss, tf.float32)
 
 
-def visualize_predictions(model, dataset, num_images=3):
+def visualize_predictions(model, dataset, num_images=10):
     if isinstance(dataset, tf.data.Dataset):
         for i, (images, masks) in enumerate(dataset.take(1)):
             if i >= num_images:
@@ -129,7 +149,7 @@ def visualize_predictions(model, dataset, num_images=3):
                 
             display_count = min(num_images, images.shape[0])
             pred_masks = model.predict(images[:display_count])
-            pred_masks = (pred_masks > 0.5).astype("float32")
+            pred_masks = (pred_masks > 0.85).astype("float32")  # Higher threshold for thinner masks
             
             plt.figure(figsize=(15, 5*display_count))
             for j in range(display_count):
@@ -161,28 +181,28 @@ def visualize_predictions(model, dataset, num_images=3):
             images = images[:num_images]
             masks = masks[:num_images]
             
-        pred_masks = model.predict(images)
-        pred_masks = (pred_masks > 0.5).astype("float32")
+    pred_masks = model.predict(images)
+    pred_masks = (pred_masks > 0.85).astype("float32")  # Higher threshold for thinner masks
         
-        plt.figure(figsize=(15, 5*num_images))
-        for j in range(num_images):
-            plt.subplot(num_images, 3, j*3+1)
-            plt.imshow(images[j])
-            plt.title("Image")
-            plt.axis('off')
-            
-            plt.subplot(num_images, 3, j*3+2)
-            plt.imshow(masks[j], cmap='gray')
-            plt.title("True Mask")
-            plt.axis('off')
-            
-            plt.subplot(num_images, 3, j*3+3)
-            plt.imshow(pred_masks[j], cmap='gray')
-            plt.title("Predicted Mask")
-            plt.axis('off')
+    plt.figure(figsize=(15, 5*num_images))
+    for j in range(num_images):
+        plt.subplot(num_images, 3, j*3+1)
+        plt.imshow(images[j])
+        plt.title("Image")
+        plt.axis('off')
         
-        plt.tight_layout()
-        plt.show()
+        plt.subplot(num_images, 3, j*3+2)
+        plt.imshow(masks[j], cmap='gray')
+        plt.title("True Mask")
+        plt.axis('off')
+        
+        plt.subplot(num_images, 3, j*3+3)
+        plt.imshow(pred_masks[j], cmap='gray')
+        plt.title("Predicted Mask")
+        plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
 
 def load_image_mask_pair(image_path, mask_path):
     image_path = tf.cast(image_path, tf.string)
@@ -200,16 +220,44 @@ def load_image_mask_pair(image_path, mask_path):
     return image, mask
 
 def augment_data(image, mask):
+    h, w = tf.shape(image)[0], tf.shape(image)[1]
+
+    # Random horizontal flip
     if tf.random.uniform(()) > 0.5:
         image = tf.image.flip_left_right(image)
         mask = tf.image.flip_left_right(mask)
+
+    # Very rare vertical flip for robustness
+    if tf.random.uniform(()) > 0.9: 
+        image = tf.image.flip_up_down(image)
+        mask = tf.image.flip_up_down(mask)
+
+    # Random color adjustments
+    image = tf.image.random_brightness(image, 0.3)  # Increased from 0.2
+    image = tf.image.random_contrast(image, 0.7, 1.3)  # Expanded range
+    image = tf.image.random_saturation(image, 0.8, 1.2)  # Added saturation
+    image = tf.image.random_hue(image, 0.1)  # Added hue adjustment
     
-    image = tf.image.random_brightness(image, 0.2)
+    # Random scaling (zoom in/out)
+    scale = tf.random.uniform([], 0.8, 1.2)  # Expanded range from (0.9, 1.1)
+    new_h = tf.cast(tf.cast(h, tf.float32) * scale, tf.int32)
+    new_w = tf.cast(tf.cast(w, tf.float32) * scale, tf.int32)
+    image = tf.image.resize(image, [new_h, new_w])
+    mask = tf.image.resize(mask, [new_h, new_w], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
     
-    image = tf.image.random_contrast(image, 0.8, 1.2)
+    # Random cropping and padding to original size
+    image = tf.image.resize_with_crop_or_pad(image, h, w)
+    mask = tf.image.resize_with_crop_or_pad(mask, h, w)
     
+    # Ensure values are in valid range
     image = tf.clip_by_value(image, 0.0, 1.0)
-    
+    mask = tf.image.resize_with_crop_or_pad(mask, h, w)
+
+    noise = tf.random.normal(tf.shape(image), mean=0.0, stddev=0.02)
+    image = image + noise
+
+    image = tf.clip_by_value(image, 0.0, 1.0)
+
     return image, mask
 
 def get_aligned_image_mask_pairs(images_dir, masks_dir):
@@ -238,8 +286,10 @@ def get_aligned_image_mask_pairs(images_dir, masks_dir):
     
     for num in sorted(image_map.keys()):
         if num in mask_map:
-            paired_images.append(image_map[num])
-            paired_masks.append(mask_map[num])
+            mask_img = cv.imread(mask_map[num], cv.IMREAD_GRAYSCALE)
+            if mask_img is not None and np.any(mask_img):  # Ignore fully black masks
+                paired_images.append(image_map[num])
+                paired_masks.append(mask_map[num])
     
     print(f"Found {len(paired_images)} aligned image-mask pairs")
     return paired_images, paired_masks
@@ -292,15 +342,15 @@ def extract_dataset_zip():
         return False
 
 def draw_lane_mask(anno_path, image_shape, thickness=18):
-        mask = np.zeros(image_shape[:2], dtype=np.uint8)  # H x W
-        with open(anno_path, 'r') as f:
-            lines = f.readlines()
-            for line in lines:
-                coords = list(map(float, line.strip().split()))
-                points = [(int(coords[i]), int(coords[i+1])) for i in range(0, len(coords), 2)]
-                for i in range(1, len(points)):
-                    cv.line(mask, points[i-1], points[i], color=255, thickness=thickness)
-        return mask
+            mask = np.zeros(image_shape[:2], dtype=np.uint8)  # H x W
+            with open(anno_path, 'r') as f:
+                lines = f.readlines()
+                for line in lines:
+                    coords = list(map(float, line.strip().split()))
+                    points = [(int(coords[i]), int(coords[i+1])) for i in range(0, len(coords), 2)]
+                    for i in range(1, len(points)):
+                        cv.line(mask, points[i-1], points[i], color=255, thickness=10)  # Reduced thickness
+            return mask
 
 def process_dataset():
     extract_dataset_zip()
@@ -547,6 +597,7 @@ def create_lane_segmenation_model(input_shape=INPUT_SHAPE):
     
     # Create model
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
+    model.backbone = backbone  # Attach backbone for reliable access
     return model, backbone
 
 masks_exist = os.path.exists(MASKS_DIR) and len(os.listdir(MASKS_DIR)) > 0
@@ -674,15 +725,16 @@ checkpoint = tf.keras.callbacks.ModelCheckpoint(
 early_stopping = EarlyStopping(
     monitor='val_iou_metric',
     mode='max',
-    patience=6,
-    restore_best_weights=True
+    patience=10,  # Increased patience for more stable training
+    restore_best_weights=True,
+    verbose=1
 )
 
 reduce_lr = ReduceLROnPlateau(
     monitor='val_iou_metric',
     mode='max',
     factor=0.5,
-    patience=6,
+    patience=8,  # Slightly increased patience
     verbose=1,
     min_lr=1e-6
 )
@@ -704,21 +756,7 @@ history_phase1 = model.fit(
 )
 
 print("Phase 2: Fine-tuning backbone layers")
-backbone = None
-for layer in model.layers:
-    if isinstance(layer, tf.keras.Model) and layer.name == 'efficientnet_backbone':
-        backbone = layer
-        print(f"Found backbone model: {backbone.name}")
-        break
-
-if backbone is None:
-    print("Could not find backbone model by name, attempting to find by type...")
-    for layer in model.layers:
-        if isinstance(layer, tf.keras.Model):
-            backbone = layer
-            print(f"Found model layer: {backbone.name}")
-            break
-
+backbone = getattr(model, 'backbone', None)
 if backbone is None:
     print("WARNING: No backbone found. Skipping fine-tuning phase.")
     history_phase2 = None
@@ -744,8 +782,8 @@ else:
     history_phase2 = model.fit(
         train_ds,
         validation_data=val_ds,
-        epochs=15,
-        callbacks=[checkpoint, reduce_lr]
+        epochs=30,  # Increased epochs for fine-tuning phase
+        callbacks=[checkpoint, reduce_lr, early_stopping]  # Added early stopping
     )
 
 if history_phase2 is not None:

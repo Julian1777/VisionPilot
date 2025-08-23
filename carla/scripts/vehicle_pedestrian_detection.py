@@ -5,9 +5,10 @@ import pandas as pd
 from ultralytics import YOLO
 import tensorflow as tf
 import sys
+from config.config import VEHICLE_PEDESTRIAN_MODEL
 
 IMG_SIZE = (224, 224)
-DETECTION_MODEL_PATH = os.path.join("model", "vehicle_pedestrian_detection.pt")
+DETECTION_MODEL_PATH = str(VEHICLE_PEDESTRIAN_MODEL)
 
 def get_models_dict():
     try:

@@ -471,7 +471,7 @@ def reset_video():
         play_btn.config(text="Play")
 
 def detect_lanes_hough(frames):
-    from lane_detection_hough import lane_detection
+    from carla.scripts.lane_detection_hough import lane_detection
 
     print(f"Lane detection input shape: {frames.shape}, dtype: {frames.dtype}")
 
@@ -490,7 +490,7 @@ def detect_lanes_hough(frames):
 #     return lane_ml_results
 
 def detect_class_traffic_lights(frames):
-    from traffic_light_detect_class import combined_traffic_light_detection
+    from carla.scripts.traffic_light_detect_class import combined_traffic_light_detection
 
     bgr_frames = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
 
@@ -500,7 +500,7 @@ def detect_class_traffic_lights(frames):
     return light_detect_results
 
 def detect_classify_signs(frames):
-    from sign_detection_classification import combined_sign_detection_classification
+    from carla.scripts.sign_detection_classification import combined_sign_detection_classification
 
     sign_results = combined_sign_detection_classification(frames)
     print(f"Got sign results: {sign_results[:2] if sign_results else 'None'}")
@@ -508,7 +508,7 @@ def detect_classify_signs(frames):
     return sign_results
 
 def detect_vehicles_pedestrians(frames):
-    from vehicle_pedestrian_detection import detect_vehicles_pedestrians
+    from carla.scripts.vehicle_pedestrian_detection import detect_vehicles_pedestrians
 
     print(f"Vehicle detection input shape: {frames.shape}, dtype: {frames.dtype}")
 

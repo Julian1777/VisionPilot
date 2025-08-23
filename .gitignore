@@ -14,3 +14,6 @@ __pycache__/
 .ipynb_checkpoints/
 
 .vscode/
+
+*.h5
+*.keras

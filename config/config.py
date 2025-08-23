@@ -10,5 +10,5 @@ VIDEOS_DIR = BASE_DIR / "videos"
 
 VEHICLE_PEDESTRIAN_MODEL = MODELS_DIR / "vehicle_pedestrian_detection.pt"
 SIGN_DETECTION_MODEL = MODELS_DIR / "sign_detection.pt"
-SIGN_CLASSIFICATION_MODEL = MODELS_DIR / "traffic_sign_classification.pt"
+SIGN_CLASSIFICATION_MODEL = MODELS_DIR / "traffic_sign_classification.h5"
 LIGHT_DETECTION_CLASSIFICATION_MODEL = MODELS_DIR / "traffic_light_detect_class.pt"

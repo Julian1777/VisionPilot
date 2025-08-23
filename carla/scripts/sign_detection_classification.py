@@ -7,11 +7,12 @@ from ultralytics import YOLO
 import tensorflow as tf
 import sys
 from PIL import Image
-from vehicle_pedestrian_detection import detect_vehicles_pedestrians
+from scripts.vehicle_pedestrian_detection import detect_vehicles_pedestrians
+from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL
 
 IMG_SIZE = (30, 30)
-SIGN_MODEL_PATH = os.path.join("model", "sign_detection.pt")
-SIGN_CLASSIFY_MODEL_PATH = os.path.join("model", "traffic_sign_classification.h5")
+SIGN_MODEL_PATH = str(SIGN_DETECTION_MODEL)
+SIGN_CLASSIFY_MODEL_PATH = str(SIGN_CLASSIFICATION_MODEL)
 
 def get_models_dict():
     try:
@@ -47,8 +48,8 @@ def load_class_names(csv_path):
         print(f"Error processing CSV: {e}")
         return {}
 
-class_names_dict = load_class_names("sign_dic.csv")
-print(class_names_dict)
+sign_dic_path = os.path.join(os.path.dirname(__file__), "..", "sign_dic.csv")
+class_names_dict = load_class_names(sign_dic_path)
 
 num_classes = max(map(int, class_names_dict.keys())) + 1
 class_descriptions = ["Unknown Class"] * num_classes
@@ -90,12 +91,8 @@ def classify_sign_crop(sign_crop):
             classification = f"Class {class_idx}"
 
         print("classification:", classification)
-        print("pred[0]:", pred[0])
         
         top_indices = np.argsort(pred[0])[-3:][::-1]
-        print(f"Top 3 predictions for sign:")
-        for i in top_indices:
-            print(f"  {class_descriptions[i]}: {pred[0][i]:.4f}")
         
         return {
             'class': classification,

@@ -10,7 +10,6 @@ CROP_LEFT_RIGHT = 20
 CROP_TOP_BOTTOM = 5
 IMG_SIZE = (64, 64)
 STATES = ["red", "yellow", "green"]
-MERGED_DS = "merged_dataset"
 
 def extract_brightness_features(image):
     hsv = tf.image.rgb_to_hsv(image)
