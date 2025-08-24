@@ -310,24 +310,16 @@ def show_image(frame):
     
     if frame_count % 5 == 0 and frame_count - last_lane_update >= update_interval:
         try:
-            lane_results_hough = detect_lanes_hough(rgb_image)
-            lane_image_hough = rgb_image.copy()
-            
-            if lane_results_hough is not None and isinstance(lane_results_hough, (list, tuple)) and len(lane_results_hough) > 0:
-                print(f"Drawing {len(lane_results_hough)} lane lines")
-                for line in lane_results_hough:
-                    if isinstance(line, tuple) and len(line) == 2:
-                        cv.line(lane_image_hough, line[0], line[1], (255, 0, 0), 2)
+            lane_image_hough = detect_lanes_hough(rgb_image)
+            print(f"lane_image_hough type: {type(lane_image_hough)}")
+            if isinstance(lane_image_hough, np.ndarray):
+                print(f"lane_image_hough shape: {lane_image_hough.shape}, dtype: {lane_image_hough.dtype}")
+            if lane_image_hough is not None:
+                lane_hough_photo = numpy_to_tkinter(lane_image_hough, "lane_hough")
+                print(f"lane_hough_photo type: {type(lane_hough_photo)}")
+                lane_hough_canvas.itemconfig(lane_hough_image_id, image=lane_hough_photo)
             else:
-                print("No lane lines detected")
-                cv.putText(lane_image_hough, "No lanes detected", (50, 100), 
-                        cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            
-            cv.putText(lane_image_hough, f"Frame: {frame_count}", (10, 30), 
-                    cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                      
-            lane_hough_photo = numpy_to_tkinter(lane_image_hough, "lane_hough")
-            lane_hough_canvas.itemconfig(lane_hough_image_id, image=lane_hough_photo)
+                print("Lane detection returned None")
             last_lane_update = frame_count
         except Exception as e:
             print(f"Error in lane_detection_hough: {e}")
@@ -558,10 +550,8 @@ def show_image(frame):
 def detect_lanes_hough(frames):
     from scripts.lane_detection_hough import lane_detection
 
-    frames_bgr = cv.cvtColor(frames, cv.COLOR_RGB2BGR)
-
-    lane_hough_results = lane_detection(frames_bgr)
-    print(f"Got lane results: {lane_hough_results[:2] if lane_hough_results else 'None'}")
+    lane_hough_results = lane_detection(frames)
+    print(f"Got lane results: {type(lane_hough_results)}")
 
     return lane_hough_results
 
@@ -624,7 +614,6 @@ def main():
     def tick_loop(world):
         while True:
             try:
-                print("Ticking world...")
                 world.tick()
                 time.sleep(0.05)
             except Exception as e:

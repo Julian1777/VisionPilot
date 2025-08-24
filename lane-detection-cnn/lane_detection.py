@@ -57,13 +57,13 @@ if not IS_KAGGLE:
  
 
 MAX_SAMPLES = 20000
-IMG_SIZE = (512, 256)  # Maintained the recommended aspect ratio
+IMG_SIZE = (512, 256)
 INPUT_SHAPE = (IMG_SIZE[0], IMG_SIZE[1], 3)
-BATCH_SIZE = 15  # Changed to match recommendation
+BATCH_SIZE = 15
 SHUFFLE_BUFFER_SIZE = 1000
 POS_WEIGHT = 67
 SEED = 123
-EPOCHS = 100  # Increased as per recommendation
+EPOCHS = 100
 
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 
@@ -118,24 +118,19 @@ def focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25):
     """
     y_pred = tf.clip_by_value(y_pred, tf.keras.backend.epsilon(), 1 - tf.keras.backend.epsilon())
     
-    # For positive samples
     pos_loss = -alpha * tf.math.pow(1 - y_pred, gamma) * y_true * tf.math.log(y_pred)
     
-    # For negative samples
     neg_loss = -(1 - alpha) * tf.math.pow(y_pred, gamma) * (1 - y_true) * tf.math.log(1 - y_pred)
     
     return tf.reduce_mean(pos_loss + neg_loss)
 
 def combined_loss(y_true, y_pred, pos_weight=POS_WEIGHT):
-    # Triple lane pixel weighting for sharper segmentation
     increased_weight = pos_weight * 4.5
     
-    # Combine multiple losses with different weights
     bce = weighted_binary_crossentropy(y_true, y_pred, increased_weight)
     dice = weighted_dice_loss(y_true, y_pred, increased_weight)
     focal = focal_loss(y_true, y_pred, gamma=2.0, alpha=0.25)
     
-    # Weighted combination of losses (focal loss gets more weight to focus on hard examples)
     loss = 0.4 * bce + 0.4 * dice + 0.2 * focal
     
     return tf.cast(loss, tf.float32)
@@ -553,48 +548,63 @@ def save_model_multiple_formats(model, base_path):
 
 def create_lane_segmenation_model(input_shape=INPUT_SHAPE):
     inputs = tf.keras.layers.Input(shape=input_shape)
-    
     base_model = tf.keras.applications.EfficientNetB0(
         input_tensor=inputs,
-        include_top=False, 
+        include_top=False,
         weights='imagenet'
     )
-    
     backbone = tf.keras.Model(inputs=base_model.input, outputs=base_model.output, name='efficientnet_backbone')
     backbone.trainable = False
-    
-    # Get the output of the backbone
-    x = backbone.output
-    
-    # Decoder path - Simple upsampling
-    # First upsampling: ~7×7 -> ~14×14 
-    x = layers.Conv2D(256, 3, padding='same', activation='relu')(x)
-    x = layers.BatchNormalization()(x)
-    x = layers.UpSampling2D(2)(x)
-    
-    # Second upsampling: ~14×14 -> ~28×28
+
+    # Extract skip connections from EfficientNetB0
+    # Early features (fine detail)
+    skip1 = base_model.get_layer('block2a_expand_activation').output  # ~128x64, 24 channels
+    # Middle features
+    skip2 = base_model.get_layer('block4a_expand_activation').output  # ~32x16, 144 channels
+    # Backbone output
+    x = backbone.output  # ~16x8, 1280 channels
+
+    # Reduce channel dimensions for skips
+    skip1 = layers.Conv2D(16, 1, padding='same', activation='relu')(skip1)
+    skip2 = layers.Conv2D(32, 1, padding='same', activation='relu')(skip2)
+
+    # Decoder path with skip connections
+    # First upsampling: ~16x8 -> ~32x16
     x = layers.Conv2D(128, 3, padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
     x = layers.UpSampling2D(2)(x)
-    
-    # Third upsampling: ~28×28 -> ~56×56
+
+    # Second upsampling: ~32x16 -> ~64x32
     x = layers.Conv2D(64, 3, padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
     x = layers.UpSampling2D(2)(x)
-    
-    # Fourth upsampling: ~56×56 -> ~112×112
+
+    # Now x is (None, 64, 32, ...), same as skip2
+    x = layers.Concatenate()([x, skip2])
+    x = layers.Conv2D(96, 1, padding='same', activation='relu')(x)
+
+    # Third upsampling: ~64x32 -> ~128x64
     x = layers.Conv2D(32, 3, padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
     x = layers.UpSampling2D(2)(x)
-    
-    # Final upsampling: ~112×112 -> ~224×224
+
+    # Fourth upsampling: ~128x64 -> ~256x128 (to match skip1)
     x = layers.Conv2D(16, 3, padding='same', activation='relu')(x)
     x = layers.BatchNormalization()(x)
     x = layers.UpSampling2D(2)(x)
-    
+
+    # Now x is (None, 256, 128, ...), same as skip1
+    x = layers.Concatenate()([x, skip1])
+    x = layers.Conv2D(32, 1, padding='same', activation='relu')(x)
+
+    # Final upsampling: ~256x128 -> ~512x256
+    x = layers.Conv2D(8, 3, padding='same', activation='relu')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.UpSampling2D(2)(x)
+
     # Output layer
     outputs = layers.Conv2D(1, 1, padding='same', activation='sigmoid')(x)
-    
+
     # Create model
     model = tf.keras.Model(inputs=inputs, outputs=outputs)
     model.backbone = backbone  # Attach backbone for reliable access

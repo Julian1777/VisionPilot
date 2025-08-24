@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import matplotlib.image as mpimg
 import glob
+import sys, os
+
 
 def abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(0, 255)):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -138,17 +140,13 @@ def slide_window(binary_warped, histogram):
         if len(good_right_inds) > minpix:        
             rightx_current = int(np.mean(nonzerox[good_right_inds]))
 
-    left_lane_inds = np.concatenate(left_lane_inds) if left_lane_inds else np.array([])
-    right_lane_inds = np.concatenate(right_lane_inds) if right_lane_inds else np.array([])
+    left_lane_inds = np.concatenate(left_lane_inds)
+    right_lane_inds = np.concatenate(right_lane_inds)
 
-    leftx = nonzerox[left_lane_inds] if left_lane_inds.size > 0 else np.array([])
-    lefty = nonzeroy[left_lane_inds] if left_lane_inds.size > 0 else np.array([])
-    rightx = nonzerox[right_lane_inds] if right_lane_inds.size > 0 else np.array([])
-    righty = nonzeroy[right_lane_inds] if right_lane_inds.size > 0 else np.array([])
-
-    if leftx.size == 0 or lefty.size == 0 or rightx.size == 0 or righty.size == 0:
-        # No lane pixels found, return None to indicate failure
-        return None, None, None
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds] 
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds] 
 
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
@@ -207,45 +205,59 @@ def draw_lane_lines(original_image, warped_image, Minv, draw_info):
 
 
 
+def lane_detection(video_path):
+    cap = cv2.VideoCapture(video_path)
+    while cap.isOpened():
+        ret, frame = cap.read()
+        frame_count = 0
 
-def lane_detection(frame):
-    rgb_frame = frame.copy()
-    grad_binary = thresholds(rgb_frame)
-    s_binary = color_threshold(rgb_frame)
-    combined_binary = combine_threshold(s_binary, grad_binary)
-    binary_warped, Minv = warp(combined_binary)
-    histogram = get_histogram(binary_warped)
-    ploty, left_fit, right_fit = slide_window(binary_warped, histogram)
-    if ploty is None or left_fit is None or right_fit is None:
-        # No lanes detected, return original frame with warning
-        result = rgb_frame.copy()
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        grad_binary = thresholds(rgb_frame)
+        s_binary = color_threshold(rgb_frame)
+        combined_binary = combine_threshold(s_binary, grad_binary)
+
+        binary_warped, Minv = warp(combined_binary)
+
+        histogram = get_histogram(binary_warped)
+        ploty, left_fit, right_fit = slide_window(binary_warped, histogram)
+
+        left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+        draw_info = {
+            'leftx': left_fitx,
+            'rightx': right_fitx,
+            'left_fitx': left_fitx,
+            'right_fitx': right_fitx,
+            'ploty': ploty
+        }
+
+        result = draw_lane_lines(frame, binary_warped, Minv, draw_info)
+
+        ym_per_pix = 30/720
+        xm_per_pix = 3.7/700
+        left_fit_cr = np.polyfit(ploty*ym_per_pix, left_fitx*xm_per_pix, 2)
+        right_fit_cr = np.polyfit(ploty*ym_per_pix, right_fitx*xm_per_pix, 2)
+        y_eval = np.max(ploty)
+        left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
+        right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+        curvature_text = f"Curvature: L={left_curverad:.1f}m, R={right_curverad:.1f}m"
         fontType = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(result, "No lanes detected", (50, 100), fontType, 1.2, (0, 0, 255), 2)
-        return result
-    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-    draw_info = {
-        'leftx': left_fitx,
-        'rightx': right_fitx,
-        'left_fitx': left_fitx,
-        'right_fitx': right_fitx,
-        'ploty': ploty
-    }
-    result = draw_lane_lines(rgb_frame, binary_warped, Minv, draw_info)
-    ym_per_pix = 30/720
-    xm_per_pix = 3.7/700
-    left_fit_cr = np.polyfit(ploty*ym_per_pix, left_fitx*xm_per_pix, 2)
-    right_fit_cr = np.polyfit(ploty*ym_per_pix, right_fitx*xm_per_pix, 2)
-    y_eval = np.max(ploty)
-    left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
-    right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
-    curvature_text = f"Curvature: L={left_curverad:.1f}m, R={right_curverad:.1f}m"
-    fontType = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(result, curvature_text, (30, 60), fontType, 1.2, (255,255,255), 2)
-    lane_center = (left_fitx[-1] + right_fitx[-1]) / 2
-    vehicle_center = frame.shape[1] / 2
-    deviation = (vehicle_center - lane_center) * xm_per_pix
-    direction = '+' if deviation > 0 else '-'
-    deviation_text = f"Deviation: {direction}{abs(deviation):.2f}m"
-    cv2.putText(result, deviation_text, (30, 110), fontType, 1.2, (255,255,255), 2)
-    return result
+        cv2.putText(result, curvature_text, (30, 60), fontType, 1.2, (255,255,255), 2)
+
+        # Deviation from center
+        lane_center = (left_fitx[-1] + right_fitx[-1]) / 2
+        vehicle_center = frame.shape[1] / 2
+        deviation = (vehicle_center - lane_center) * xm_per_pix
+        direction = '+' if deviation > 0 else '-'
+        deviation_text = f"Deviation: {direction}{abs(deviation):.2f}m"
+        cv2.putText(result, deviation_text, (30, 110), fontType, 1.2, (255,255,255), 2)
+
+        cv2.imshow('Lane Detection', result)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+        frame_count += 1
+
+if __name__ == "__main__":
+    video_file = f"{VIDEOS_DIR}/clips/highway/nl-cut.mp4"
+    lane_detection(video_file)
