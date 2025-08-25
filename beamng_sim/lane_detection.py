@@ -72,12 +72,13 @@ def combine_threshold(s_binary, combined):
 def warp(img):
     img_size = (img.shape[1], img.shape[0])
     
-    src = np.float32(
-        [[376, 992], 
-          [1465, 992], 
-          [980, 644], 
-          [919, 645]])
-    
+    # Dynamically scale src points for any resolution
+    src = np.float32([
+        [img_size[0]*0.012, img_size[1]*0.995],   # left-bottom
+        [img_size[0]*0.99,  img_size[1]*0.995],   # right-bottom
+        [img_size[0]*0.57,  img_size[1]*0.57],    # right-top
+        [img_size[0]*0.41,  img_size[1]*0.57]     # left-top
+    ])
     dst = np.float32([
         [img_size[0]*0.2, img_size[1]],   # bottom-left
         [img_size[0]*0.8, img_size[1]],   # bottom-right
@@ -205,25 +206,24 @@ def draw_lane_lines(original_image, warped_image, Minv, draw_info):
 
 
 
-def lane_detection(video_path):
-    cap = cv2.VideoCapture(video_path)
-    while cap.isOpened():
-        ret, frame = cap.read()
-        frame_count = 0
+def process_frame(frame):
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    grad_binary = thresholds(rgb_frame)
+    # s_binary = color_threshold(rgb_frame)
+    # combined_binary = combine_threshold(s_binary, grad_binary)
+    combined_binary = grad_binary
 
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        grad_binary = thresholds(rgb_frame)
-        s_binary = color_threshold(rgb_frame)
-        combined_binary = combine_threshold(s_binary, grad_binary)
-
-        binary_warped, Minv = warp(combined_binary)
-
-        histogram = get_histogram(binary_warped)
+    binary_warped, Minv = warp(combined_binary)
+    
+    histogram = get_histogram(binary_warped)
+    
+    try:
         ploty, left_fit, right_fit = slide_window(binary_warped, histogram)
-
+        
         left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
         right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+        
         draw_info = {
             'leftx': left_fitx,
             'rightx': right_fitx,
@@ -231,33 +231,68 @@ def lane_detection(video_path):
             'right_fitx': right_fitx,
             'ploty': ploty
         }
-
+        
         result = draw_lane_lines(frame, binary_warped, Minv, draw_info)
-
+        
         ym_per_pix = 30/720
         xm_per_pix = 3.7/700
+        
         left_fit_cr = np.polyfit(ploty*ym_per_pix, left_fitx*xm_per_pix, 2)
         right_fit_cr = np.polyfit(ploty*ym_per_pix, right_fitx*xm_per_pix, 2)
         y_eval = np.max(ploty)
         left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
         right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
-        curvature_text = f"Curvature: L={left_curverad:.1f}m, R={right_curverad:.1f}m"
-        fontType = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(result, curvature_text, (30, 60), fontType, 1.2, (255,255,255), 2)
-
-        # Deviation from center
+        
         lane_center = (left_fitx[-1] + right_fitx[-1]) / 2
         vehicle_center = frame.shape[1] / 2
         deviation = (vehicle_center - lane_center) * xm_per_pix
         direction = '+' if deviation > 0 else '-'
+        
+        curvature_text = f"Curvature: L={left_curverad:.1f}m, R={right_curverad:.1f}m"
         deviation_text = f"Deviation: {direction}{abs(deviation):.2f}m"
+        
+        fontType = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(result, curvature_text, (30, 60), fontType, 1.2, (255,255,255), 2)
         cv2.putText(result, deviation_text, (30, 110), fontType, 1.2, (255,255,255), 2)
-
-        cv2.imshow('Lane Detection', result)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-        frame_count += 1
+        
+        metrics = {
+            'left_curverad': left_curverad,
+            'right_curverad': right_curverad,
+            'deviation': deviation,
+            'lane_center': lane_center
+        }
+        
+    except Exception as e:
+        print(f"Lane detection error: {e}")
+        result = frame.copy()
+        metrics = {
+            'left_curverad': 0,
+            'right_curverad': 0,
+            'deviation': 0,
+            'lane_center': 0,
+            'error': str(e)
+        }
+        
+    return result, metrics
 
 if __name__ == "__main__":
-    video_file = f"{VIDEOS_DIR}/clips/highway/nl-cut.mp4"
-    lane_detection(video_file)
+    import os
+    
+    video_path = "videos/clips/city/miami-cut.mp4"
+    if os.path.exists(video_path):
+        cap = cv2.VideoCapture(video_path)
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            result, metrics = process_frame(frame)
+            
+            cv2.imshow('Lane Detection', result)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+        cap.release()
+        cv2.destroyAllWindows()
+    else:
+        print(f"Video file not found: {video_path}")
