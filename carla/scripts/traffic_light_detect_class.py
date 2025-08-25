@@ -4,6 +4,7 @@ import numpy as np
 from ultralytics import YOLO
 import cv2 as cv
 import sys
+import random
 
 from scripts.traffic_light_class_cv import classify_traffic_light_crop
 from scripts.vehicle_pedestrian_detection import detect_vehicles_pedestrians
@@ -76,6 +77,16 @@ def detect_classify_traffic_light(frame):
                 light_state = "green"
 
             traffic_light_crop = frame[y1:y2, x1:x2]
+            
+            debug_dir = os.path.join('images', 'traffic-lights', 'debug')
+            os.makedirs(debug_dir, exist_ok=True)
+            crop_filename = f"crop_{x1}_{y1}_{x2}_{y2}_{random.randint(0,99999)}.png"
+            crop_path = os.path.join(debug_dir, crop_filename)
+            try:
+                cv.imwrite(crop_path, cv.cvtColor(traffic_light_crop, cv.COLOR_RGB2BGR))
+                print(f"Saved traffic light crop for debug: {crop_path}")
+            except Exception as e:
+                print(f"Error saving traffic light crop: {e}")
 
             cv_classification = classify_traffic_light_crop(traffic_light_crop)
 

@@ -34,7 +34,7 @@ playing = False
 delay = 30
 
 main_photo = None
-lane_hough_photo = None
+lane_cv_photo = None
 lane_ml_photo = None
 sign_photo = None
 light_detect_class_photo = None
@@ -211,7 +211,7 @@ def carla_front_camera_callback(image):
     show_image(frame)
 
 vehicle_window = None
-lane_hough_window = None
+lane_cv_window = None
 sign_window = None
 light_window = None
 
@@ -221,9 +221,9 @@ root.title("Carla Self-Driving Car Simulation")
 control_frame = tk.Frame(root)
 control_frame.pack(side=tk.BOTTOM, fill=tk.X)
 
-lane_hough_window = tk.Toplevel(root)
-lane_hough_window.title("Lane Detection using Hough Transform")
-lane_hough_window.geometry(f"{window_width}x{window_height}+{window_width}+0")
+lane_cv_window = tk.Toplevel(root)
+lane_cv_window.title("Lane Detection using Computer Vision")
+lane_cv_window.geometry(f"{window_width}x{window_height}+{window_width}+0")
 
 lane_ml_window = tk.Toplevel(root)
 lane_ml_window.title("Lane Detection using Machine Learning")
@@ -244,8 +244,8 @@ vehicle_window.geometry(f"{window_width}x{window_height}+{2*window_width}+{windo
 main_canvas = tk.Canvas(root, width=window_width, height=window_height)
 main_canvas.pack(fill="both", expand=True)
 
-lane_hough_canvas = tk.Canvas(lane_hough_window, width=window_width, height=window_height)
-lane_hough_canvas.pack(fill="both", expand=True)
+lane_cv_canvas = tk.Canvas(lane_cv_window, width=window_width, height=window_height)
+lane_cv_canvas.pack(fill="both", expand=True)
 
 lane_ml_canvas = tk.Canvas(lane_ml_window, width=window_width, height=window_height)
 lane_ml_canvas.pack(fill="both", expand=True)
@@ -260,7 +260,7 @@ vehicle_canvas = tk.Canvas(vehicle_window, width=window_width, height=window_hei
 vehicle_canvas.pack(fill="both", expand=True)
 
 main_image_id = main_canvas.create_image(0, 0, anchor=tk.NW)
-lane_hough_image_id = lane_hough_canvas.create_image(0, 0, anchor=tk.NW)
+lane_cv_image_id = lane_cv_canvas.create_image(0, 0, anchor=tk.NW)
 lane_ml_image_id = lane_ml_canvas.create_image(0, 0, anchor=tk.NW)
 sign_image_id = sign_canvas.create_image(0, 0, anchor=tk.NW)
 light_image_id = light_canvas.create_image(0, 0, anchor=tk.NW)
@@ -310,19 +310,19 @@ def show_image(frame):
     
     if frame_count % 5 == 0 and frame_count - last_lane_update >= update_interval:
         try:
-            lane_image_hough = detect_lanes_hough(rgb_image)
-            print(f"lane_image_hough type: {type(lane_image_hough)}")
-            if isinstance(lane_image_hough, np.ndarray):
-                print(f"lane_image_hough shape: {lane_image_hough.shape}, dtype: {lane_image_hough.dtype}")
-            if lane_image_hough is not None:
-                lane_hough_photo = numpy_to_tkinter(lane_image_hough, "lane_hough")
-                print(f"lane_hough_photo type: {type(lane_hough_photo)}")
-                lane_hough_canvas.itemconfig(lane_hough_image_id, image=lane_hough_photo)
+            lane_image_cv = detect_lanes_cv(rgb_image)
+            print(f"lane_image_cv type: {type(lane_image_cv)}")
+            if isinstance(lane_image_cv, np.ndarray):
+                print(f"lane_image_cv shape: {lane_image_cv.shape}, dtype: {lane_image_cv.dtype}")
+            if lane_image_cv is not None:
+                lane_cv_photo = numpy_to_tkinter(lane_image_cv, "lane_cv")
+                print(f"lane_cv_photo type: {type(lane_cv_photo)}")
+                lane_cv_canvas.itemconfig(lane_cv_image_id, image=lane_cv_photo)
             else:
                 print("Lane detection returned None")
             last_lane_update = frame_count
         except Exception as e:
-            print(f"Error in lane_detection_hough: {e}")
+            print(f"Error in lane_detection_cv: {e}")
 
     # elif frame_count % 5 == 1:
     #     try:
@@ -546,14 +546,15 @@ def show_image(frame):
         except Exception as e:
             print(f"Error in vehicle_pedestrian_detection: {e}")
 
+#TEMP ONLY USE CITY SCRIPT
 
-def detect_lanes_hough(frames):
-    from scripts.lane_detection_hough import lane_detection
+def detect_lanes_cv(frames):
+    from scripts.lane_detection_city import lane_detection
 
-    lane_hough_results = lane_detection(frames)
-    print(f"Got lane results: {type(lane_hough_results)}")
+    lane_cv_results = lane_detection(frames)
+    print(f"Got lane results: {type(lane_cv_results)}")
 
-    return lane_hough_results
+    return lane_cv_results
 
 # def detect_lanes_ml(frames):
 #     from lane_detection_model import predict_lane

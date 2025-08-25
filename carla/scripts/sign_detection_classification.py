@@ -60,40 +60,28 @@ for class_id, description in class_names_dict.items():
 
 def classify_sign_crop(sign_crop):
     try:
-        if sign_crop.shape[2] == 3:
-            sign_crop_rgb = cv.cvtColor(sign_crop, cv.COLOR_BGR2RGB)
-        else:
-            sign_crop_rgb = sign_crop
+        sign_crop_rgb = sign_crop
 
-        save_dir = "debug_sign_crops"
-        os.makedirs(save_dir, exist_ok=True)
-        unique_name = f"crop_{uuid.uuid4().hex[:8]}.png"
-        Image.fromarray(sign_crop_rgb).save(os.path.join(save_dir, unique_name))
-        
         img_pil = Image.fromarray(sign_crop_rgb)
         img_pil = img_pil.resize(IMG_SIZE)
         img_np = np.array(img_pil).astype(np.float32) / 255.0
         img = np.expand_dims(img_np, axis=0)
-        
+
         models_dict = get_models_dict()
         if models_dict is not None and 'sign_classify' in models_dict:
             classification_model = models_dict['sign_classify']
         else:
             classification_model = tf.keras.models.load_model(SIGN_CLASSIFY_MODEL_PATH, custom_objects={"random_brightness": random_brightness})
-        
+
         pred = classification_model.predict(img, verbose=0)
         class_idx = np.argmax(pred[0])
         class_confidence = float(pred[0][class_idx])
-        
+
         if 0 <= class_idx < len(class_descriptions):
             classification = class_descriptions[class_idx]
         else:
             classification = f"Class {class_idx}"
 
-        print("classification:", classification)
-        
-        top_indices = np.argsort(pred[0])[-3:][::-1]
-        
         return {
             'class': classification,
             'confidence': class_confidence,
