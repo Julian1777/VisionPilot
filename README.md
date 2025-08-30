@@ -140,23 +140,26 @@ self-driving-car-simulation/
 
 ## 🚀 Roadmap
 
+
 **Completed**
 - [x] Sign classification (CNN)
 - [x] Traffic light classification
 - [x] Lane detection (U-Net, SCNN, Hough)
 
 **In Progress / Near-Term**
-- [ ] Train SCNN/U-Net lane classification performance & accuracy
-- [ ] Integrate all models into Carla simulation
-- [ ] Complete CARLA test scenario
-- [ ] Cleanup and modularize CARLA pipeline
+- [ ] Advanced lane detection using OpenCV (robust city/highway, lighting, outlier handling)
+- [x] Integrate and test in BeamNG simulation (replace CARLA focus)
+- [ ] Tweak Lane detection parameters
+- [ ] Traffic scenarios: driving in heavy, moderate, and light traffic
+- [ ] Integrate radar sensor data
+- [x] Modularize and clean up BeamNG pipeline
 - [ ] Integrate vehicle control (autonomous driving logic)
 - [ ] Add evaluation scripts for all modules
 - [ ] Documentation improvements (usage, troubleshooting)
-- [ ] Test on real-world car (hardware integration, data collection)
+- [ ] Begin integration of other models (sign, light, pedestrian, etc.)
 
 **Future / Stretch Goals**
-- [ ] Real-time sensor fusion (camera, LiDAR, radar)
+- [ ] Real-time sensor fusion (camera, radar, LiDAR)
 - [ ] Multi-camera support (360° perception)
 - [ ] End-to-end driving policy learning (RL, imitation learning)
 - [ ] Advanced traffic participant prediction (trajectory, intent)

@@ -1,11 +1,8 @@
 import numpy as np
 import cv2
 
-def perspective_warp(img, speed=0, debugger=None):
-    img_size = (img.shape[1], img.shape[0])
-    w, h = img_size
-
-
+def get_src_points(image_shape, speed=0):
+    h, w = image_shape[:2]
     ref_w, ref_h = 1278, 720
     scale_w = w / ref_w
     scale_h = h / ref_h
@@ -15,18 +12,23 @@ def perspective_warp(img, speed=0, debugger=None):
     top_right    = [730, 408]
     top_left     = [519, 408]
 
-    # Apply high speed logic to push top points further up
-    speed_norm = min(speed / 120.0, 1.0)  # normalize speed (0-120 km/h)
-    top_shift = -40 * speed_norm  # move up for higher speed (adjust as needed)
+    speed_norm = min(speed / 120.0, 1.0)
+    top_shift = -40 * speed_norm
     side_shift = 100 * speed_norm
 
-    # Scale src points to current image size
     src = np.float32([
         [left_bottom[0] * scale_w, left_bottom[1] * scale_h],
         [right_bottom[0] * scale_w, right_bottom[1] * scale_h],
         [(top_right[0] - side_shift) * scale_w, (top_right[1] + top_shift) * scale_h],
         [(top_left[0] + side_shift) * scale_w,  (top_left[1]  + top_shift) * scale_h]
     ])
+    return src
+
+def perspective_warp(img, speed=0, debugger=None):
+    img_size = (img.shape[1], img.shape[0])
+    w, h = img_size
+
+    src = get_src_points(img.shape, speed)
 
     dst = np.float32([
         [w*0.2, h],

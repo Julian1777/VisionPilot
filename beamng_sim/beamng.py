@@ -80,8 +80,12 @@ def main():
             images = camera.stream()
             img = np.array(images['colour'])
 
+            print(vehicle.state['vel'])
+            speed_mps = vehicle.state['vel'][0]
+            speed_kph = speed_mps * 3.6
+
             # Enable debug display to see each step of the pipeline
-            result, metrics = process_frame(img, debug_display=True)
+            result, metrics = process_frame(img, speed=speed_kph, debug_display=True)
 
             deviation = metrics.get('deviation', 0.0)
             lane_center = metrics.get('lane_center', None)

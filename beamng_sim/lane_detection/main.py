@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from beamng_sim.lane_detection.thresholding import apply_thresholds
-from beamng_sim.lane_detection.perspective import perspective_warp
+from beamng_sim.lane_detection.perspective import get_src_points,perspective_warp
 from beamng_sim.lane_detection.lane_finder import get_histogram, sliding_window_search
 from beamng_sim.lane_detection.metrics import calculate_curvature_and_deviation
 from beamng_sim.lane_detection.visualization import draw_lane_overlay, add_text_overlay
@@ -10,17 +10,21 @@ import numpy as np
 import cv2
 
 
-def process_frame(frame, debugger=None, debug_display=False):
+def process_frame(frame, speed=0, debugger=None, debug_display=False):
     try:
 
+        src_points = get_src_points(frame.shape, speed)
+
         # Step 1: Apply thresholds to create binary image - pass debug flag
-        binary_image = apply_thresholds(frame, debugger, debug_display)
+        binary_image, avg_brightness = apply_thresholds(frame, src_points=src_points, debugger=debugger, debug_display=debug_display)
         if debug_display:
             cv2.imshow('1. Binary Image', binary_image*255 if binary_image.max()<=1 else binary_image)
             cv2.waitKey(1)
+
+        # AVG Brightness DEBUG WINDOW
         
         # Step 2: Apply perspective transform
-        binary_warped, Minv = perspective_warp(binary_image, debugger=debugger)
+        binary_warped, Minv = perspective_warp(binary_image, speed=speed, debugger=debugger)
         
         # Debug display for warped binary
         if debug_display:

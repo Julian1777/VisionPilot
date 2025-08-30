@@ -37,7 +37,7 @@ def dir_threshold(img, sobel_kernel=3, thresh=(0, np.pi/2)):
     return dir_binary
 
 
-def gradient_thresholds(image, ksize=3):
+def gradient_thresholds(image, ksize=3, avg_brightness=None):
     gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=ksize, thresh=(20, 100))
     grady = abs_sobel_thresh(image, orient='y', sobel_kernel=ksize, thresh=(20, 100))
     mag_binary = mag_thresh(image, sobel_kernel=ksize, mag_thresh=(30, 100))
@@ -48,7 +48,7 @@ def gradient_thresholds(image, ksize=3):
     return combined
 
 
-def color_threshold(image):
+def color_threshold(image, avg_brightness=None):
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
     
     # White lane lines
@@ -83,9 +83,21 @@ def combine_thresholds(color_binary, gradient_binary):
     return combined_binary
 
 
-def apply_thresholds(image, debugger=None, debug_display=False):
-    grad_binary = gradient_thresholds(image)
-    color_binary = color_threshold(image)
+def apply_thresholds(image, src_points=None, debugger=None, debug_display=False):
+
+    if src_points is not None:
+        mask = np.zeros(image.shape[:2], dtype=np.uint8)
+        src_poly = np.array(src_points, dtype=np.int32)
+        cv2.fillPoly(mask, [src_poly], 1)
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        avg_brightness = np.mean(gray[mask == 1])
+    else:
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        avg_brightness = np.mean(gray)
+
+
+    grad_binary = gradient_thresholds(image, avg_brightness=avg_brightness)
+    color_binary = color_threshold(image, avg_brightness=avg_brightness)
     combined_binary = combine_thresholds(color_binary, grad_binary)
     
     if debug_display:
@@ -101,8 +113,8 @@ def apply_thresholds(image, debugger=None, debug_display=False):
         
         intersection_display = np.dstack((combined_binary, combined_binary, combined_binary)) * 255
         cv2.imshow('1d. Combined (Intersection)', intersection_display)
-    
+
     if debugger:
         debugger.debug_thresholding(image, grad_binary, color_binary, combined_binary)
-    
-    return combined_binary
+
+    return combined_binary, avg_brightness
