@@ -1,10 +1,13 @@
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from beamng_sim.utils.pid_controller import PIDController
+
 from beamngpy import BeamNGpy, Scenario, Vehicle
-from beamngpy.sensors import Camera
+from beamngpy.sensors import Camera, Lidar
 import cv2
+
 import numpy as np
 import time
 import math
@@ -41,6 +44,9 @@ def sim_setup():
     scenario.add_vehicle(vehicle, pos=(-287.210, 73.609, 112.363), rot_quat=rot_highway)
 
     scenario.make(beamng)
+
+    beamng.settings.set_deterministic(60)
+
     beamng.scenario.load(scenario)
     beamng.scenario.start()
 
@@ -59,7 +65,23 @@ def sim_setup():
         is_render_colours=True,
     )
 
-    return beamng, vehicle, camera
+        # Create LiDAR sensor after scenario has started
+    lidar = Lidar(
+        "lidar1",
+        beamng,
+        vehicle,
+        requested_update_time=0.01,
+        is_using_shared_memory=True,
+        is_360_mode=True,  # 360-degree mode
+        vertical_angle=30,  # Vertical field of view
+        vertical_resolution=256,  # Number of lasers/channels
+        density=10,
+        frequency=30,
+        max_distance=60,
+        pos=(0, 0.2, 1.8),
+    )
+
+    return beamng, vehicle, camera, lidar
 
 def get_vehicle_speed(vehicle):
 
@@ -111,7 +133,7 @@ def lidar_detection(lidar_data, camera_detections=vehicle_obstacle_detection):
     return lidar_detections, lidar_img
 
 def main():
-    beamng, scenario, vehicle, camera = sim_setup()
+    beamng, scenario, vehicle, camera, lidar = sim_setup()
 
     pid = PIDController(Kp=0.15, Ki=0.005, Kd=0.04)
 
@@ -150,7 +172,7 @@ def main():
             cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
 
             # Lidar
-            lidar_detections, lidar_img = lidar_process_frame(lidar_data, camera_detections=vehicle_detections)
+            lidar_detections, lidar_img = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng)
             cv2.imshow('LiDAR Detection', lidar_img)
 
 
