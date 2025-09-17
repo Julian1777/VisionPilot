@@ -81,16 +81,10 @@ Below are sample demos of the system's capabilities. More demos (including new m
   - Traffic light debug visualizations (`datasets/traffic-light/debug_visualizations/`)
   - Results visualizations (`results/traffic-sign-classification/visualizations/`, `results/vehicle-pedestrian/visualizations/`)
 
+
 ## 📊 Results
 
-| Model        | Task                               | Accuracy / IoU | Dataset   |    Size    | Epochs   |
-|--------------|------------------------------------|----------------|-----------|------------|----------|
-| CNN          | Sign Classification                | 89%            | GTRSB     |            |20        |
-| YOLO       | Sign Detection                     | 89%            | Mapillary |            |50        |
-| YOLO       | Traffic light Light Detection      | mAP x          |           |            |50        |
-| SCNN         | Lane Clasification                     | IoU x          | Culane    |            |x         |
-| CV         | Lane Detection                     | x          | N/A    |            |x         |
-| YOLO         | Vehicle & Pedestrian detection     | IoU x          | BDD       | 100k       |30        |
+For qualitative and quantitative results, see the demo section above and the `results/` folder for visualizations, metrics, and sample outputs.
 
 
 
@@ -106,8 +100,13 @@ Below are sample demos of the system's capabilities. More demos (including new m
   python beamng_sim/beamng.py
   ```
   - Make sure you have BeamNG.tech installed and properly licensed. See [BeamNG.tech documentation](https://www.beamng.tech/) for setup instructions.
+
+> **Important:** You must ensure that all required models (e.g., trained weights, .h5/.pt files) and configuration files are placed in the correct directories as expected by the code. The folder structure shown below must be followed, and missing files or incorrect paths will cause errors. See each module's README or script comments for details on required files and their locations.
+
 3. **Train a model:**
   See notebooks or scripts in each module folder.
+
+  > **Note:** You must download and prepare the required datasets yourself (e.g., sorting, cropping, formatting, or converting to the expected structure) as described in each module's documentation or script. The code will not work without properly prepared data.
 
 
 ## 📝 Setup & Installation
@@ -120,7 +119,7 @@ Below are sample demos of the system's capabilities. More demos (including new m
 All models are located in the models folder
 - **Lane Detection:** Hough Transform, SCNN (lane-detection-cnn/)
 - **Traffic Sign Classification:** CNN classifier
-- **Traffic Sign Detector:** YOLO detector (traffic_sign/)
+- **Traffic Sign Detector:** YOLOv8 detector (traffic_sign/)
 - **Traffic Light Detect/Class:** YOLOv8 detector, classifier (traffic-lights/)
 - **Vehicle/Pedestrian:** YOLOv8, SCNN (vehicle-pedestrian-detection/)
 
@@ -196,19 +195,16 @@ self-driving-car-simulation/
 ## 🚀 Roadmap
 
 
-**Completed**
-- [x] Sign classification (CNN)
-- [x] Traffic light classification
-- [x] Lane detection (U-Net, SCNN, Hough)
 
-
-
-**In Progress / Near-Term**
-- [x] ⭐ Advanced lane detection using OpenCV (robust city/highway, lighting, outlier handling)
-- [x] Integrate and test in BeamNG.tech simulation (replacing CARLA)
-- [x] ⭐ Tweak lane detection parameters
+**Roadmap**
+- [x] Sign classification (CNN) *(completed)*
+- [x] Traffic light classification *(completed)*
+- [x] Lane detection (U-Net, SCNN, Hough) *(completed)*
+- [x] ⭐ Advanced lane detection using OpenCV (robust city/highway, lighting, outlier handling) *(completed, still tuning)*
+- [x] Integrate and test in BeamNG.tech simulation (replacing CARLA) *(completed)*
+- [x] ⭐ Tweak lane detection parameters *(completed, still tuning)*
 - [ ] ⭐ Integrate radar sensor data (LiDAR)
-- [x] Modularize and clean up BeamNG.tech pipeline
+- [x] Modularize and clean up BeamNG.tech pipeline *(completed)*
 - [ ] ⭐ Integrate vehicle control (autonomous driving logic)
 - [ ] Traffic scenarios: driving in heavy, moderate, and light traffic
 - [ ] Add evaluation scripts for all modules
@@ -231,10 +227,12 @@ self-driving-car-simulation/
 - Please open issues for bugs, feature requests, or questions.
 
 
+
 ## 🙏 Credits
 - Datasets: CU Lane, LISA, GTRSB, Mapillary, BDD100K
 - Models: Ultralytics YOLOv8, custom CNNs
 - Simulation: BeamNG.tech ([BeamNG GmbH](https://www.beamng.tech/))
+- Special thanks to [Kaggle](https://www.kaggle.com/) for providing free GPU resources for model training without them it would've been imposible to have such good models.
 
 ### BeamNG.tech Citation
 
