@@ -62,31 +62,38 @@ Below are sample demos of the system's capabilities. More demos (including new m
 - **Mapillary** for sign detection
 - **BDD** for vehicle and pedestrian detection
 
+
 ## 📚 Datasets & Sources
+
+> **Note:** The datasets folder is not included in the repository. You must download and prepare all datasets yourself. The following structure and subfolders are required for the code to work—please organize your downloaded and processed datasets to match this layout:
+
 - **Lane Detection:**
-  - CU Lane Dataset (`datasets/lane-detection/`)
-  - Processed Culane with sorted masks, images, and annotations (`lane-detection/processed/`, Raw Dataset `lane-detection/raw/`)
+  - Place CU Lane Dataset in `datasets/lane-detection/`
+  - Processed Culane with sorted masks, images, and annotations in `lane-detection/processed/` and raw data in `lane-detection/raw/`
 - **Traffic Sign Classification:**
-  - GTSRB Dataset
+  - Place GTSRB Dataset in the appropriate subfolder
 - **Traffic Sign Detection:**
-  - Unprocessed Mapillary Sign Dataset (`datasets/traffic-sign/raw`)
-  - Processed dataset for yolov8 format (`datasets/traffic-sign/processed-yolo/`)
+  - Place unprocessed Mapillary Sign Dataset in `datasets/traffic-sign/raw`
+  - Processed dataset for yolov8 format in `datasets/traffic-sign/processed-yolo/`
 - **Traffic Light Detection & Classification:**
-  - Unprocessed DLDT & LISA Datasets (`datasets/traffic-light/raw`)
-  - Combined DLDT & LISA datasets sorted by light state(`datasets/traffic-light/processed/merged_dataset`)
-  - Combined Dataset processed for YOLO training(`datasets/traffic-light/processed/yolo_dataset`)
+  - Place unprocessed DLDT & LISA Datasets in `datasets/traffic-light/raw`
+  - Combined DLDT & LISA datasets sorted by light state in `datasets/traffic-light/processed/merged_dataset`
+  - Combined dataset processed for YOLO training in `datasets/traffic-light/processed/yolo_dataset`
 - **Vehicle & Pedestrian Detection:**
-  - BDD100K (Not in repo due to size, can be found on kaggle profile) (`datasets/vehicle-pedestrian/`)
+  - Place BDD100K in `datasets/vehicle-pedestrian/` (download from Kaggle profile)
 - **Debug Visualizations:**
-  - Traffic light debug visualizations (`datasets/traffic-light/debug_visualizations/`)
-  - Results visualizations (`results/traffic-sign-classification/visualizations/`, `results/vehicle-pedestrian/visualizations/`)
+  - Place traffic light debug visualizations in `datasets/traffic-light/debug_visualizations/`
+  - Place results visualizations in `results/traffic-sign-classification/visualizations/` and `results/vehicle-pedestrian/visualizations/`
+
 
 
 ## 📊 Results
 
-For qualitative and quantitative results, see the demo section above and the `results/` folder for visualizations, metrics, and sample outputs.
+For qualitative and quantitative results, see the demo section above and the `results/` folder for visualizations, metrics, and sample outputs. Example outputs include:
 
-
+  - `results/traffic-sign-classification/metrics/` (JSON, curves)
+  - `results/traffic-sign-detection/weights/` (YOLO checkpoints)
+  - `results/vehicle-pedestrian/visualizations/` (confusion matrices, sample batches)
 
 
 ## ⚡ Quickstart & Usage
@@ -122,14 +129,7 @@ All models are located in the models folder
 - **Traffic Sign Detector:** YOLOv8 detector (traffic_sign/)
 - **Traffic Light Detect/Class:** YOLOv8 detector, classifier (traffic-lights/)
 - **Vehicle/Pedestrian:** YOLOv8, SCNN (vehicle-pedestrian-detection/)
-
-## 📊 Results
-- All training results, metrics, and visualizations are in `results/`
-- Example:
-  - `results/traffic-sign-classification/metrics/` (JSON, curves)
-  - `results/traffic-sign-detection/weights/` (YOLO checkpoints)
-  - `results/vehicle-pedestrian/visualizations/` (confusion matrices, sample batches)
-
+- 
 
 ## 📂 Folder Structure
 
