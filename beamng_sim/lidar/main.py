@@ -12,10 +12,16 @@ y_min, y_max = 0, 30
 def process_frame(lidar_sensor, camera_detections, beamng, speed, debug_window=None):
     try:
         lidar_data = lidar_sensor.poll()
+        if lidar_data is None:
+            print("Warning: LiDAR sensor returned None")
+            return []
+            
         point_cloud = collect_lidar_data(beamng, lidar_data)
 
         if not point_cloud or len(point_cloud) == 0:
             print("Warning: Empty LiDAR point cloud")
+            if debug_window is not None:
+                debug_window.update([], [])
             return []
 
         filtered_points = []
@@ -29,12 +35,17 @@ def process_frame(lidar_sensor, camera_detections, beamng, speed, debug_window=N
                 
         if len(filtered_points) == 0:
             print("Warning: No valid LiDAR points after filtering")
+            if debug_window is not None:
+                debug_window.update([], [])
             return []
                 
         boundaries = detect_lane_boundaries(filtered_points)
 
         if debug_window is not None:
-            debug_window.update(filtered_points, boundaries)
+            try:
+                debug_window.update(filtered_points, boundaries)
+            except Exception as debug_e:
+                print(f"Debug window update failed: {debug_e}")
 
         if boundaries:
             for b in boundaries:

@@ -38,10 +38,10 @@ def dir_threshold(img, sobel_kernel=3, thresh=(0, np.pi/2)):
 
 
 def gradient_thresholds(image, ksize=3, avg_brightness=None):
-    gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=ksize, thresh=(20, 100))
-    grady = abs_sobel_thresh(image, orient='y', sobel_kernel=ksize, thresh=(20, 100))
-    mag_binary = mag_thresh(image, sobel_kernel=ksize, mag_thresh=(30, 100))
-    dir_binary = dir_threshold(image, sobel_kernel=ksize, thresh=(0.7, 1.3))
+    gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=ksize, thresh=(40, 120))
+    grady = abs_sobel_thresh(image, orient='y', sobel_kernel=ksize, thresh=(40, 120))
+    mag_binary = mag_thresh(image, sobel_kernel=ksize, mag_thresh=(50, 120))
+    dir_binary = dir_threshold(image, sobel_kernel=ksize, thresh=(0.8, 1.2))
 
     combined = np.zeros_like(dir_binary)
     combined[((gradx == 1) & (grady == 1)) | ((mag_binary == 1) & (dir_binary == 1))] = 1
@@ -105,8 +105,9 @@ def combine_thresholds(color_binary, gradient_binary):
     
     color_coverage = np.sum(color_binary)
     
-    if color_coverage > 100:
+    if color_coverage > 50:
         combined_binary[color_binary == 1] = 1
+        
         no_color_mask = (color_binary == 0)
         combined_binary[no_color_mask & (gradient_binary == 1)] = 1
     else:
@@ -140,12 +141,8 @@ def apply_thresholds(image, src_points=None, debugger=None, debug_display=False)
         color_display = np.dstack((color_binary, color_binary, color_binary)) * 255
         cv2.imshow('1b. Color Threshold', color_display)
         
-        union_binary = combine_thresholds(color_binary, grad_binary)
-        union_display = np.dstack((union_binary, union_binary, union_binary)) * 255
-        cv2.imshow('1c. Combined (Union)', union_display)
-        
-        intersection_display = np.dstack((combined_binary, combined_binary, combined_binary)) * 255
-        cv2.imshow('1d. Combined (Intersection)', intersection_display)
+        combined_display = np.dstack((combined_binary, combined_binary, combined_binary)) * 255
+        cv2.imshow('1. Lane Detection Combined', combined_display)
 
     if debugger:
         debugger.debug_thresholding(image, grad_binary, color_binary, combined_binary)
