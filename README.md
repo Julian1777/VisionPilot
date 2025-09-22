@@ -203,13 +203,15 @@ self-driving-car-simulation/
 - [x] ⭐ Advanced lane detection using OpenCV (robust city/highway, lighting, outlier handling) *(completed, still tuning)*
 - [x] Integrate and test in BeamNG.tech simulation (replacing CARLA) *(completed)*
 - [x] ⭐ Tweak lane detection parameters *(completed, still tuning)*
-- [ ] ⭐ Integrate radar sensor data (LiDAR)
+- [ ] ⭐ Integrate Radar
+- [ ] Integrate Lidar
 - [x] Modularize and clean up BeamNG.tech pipeline *(completed)*
 - [ ] ⭐ Integrate vehicle control (autonomous driving logic)
 - [ ] Traffic scenarios: driving in heavy, moderate, and light traffic
 - [ ] Add evaluation scripts for all modules
 - [ ] Documentation improvements (usage, troubleshooting)
-- [ ] Begin integration of other models (sign, light, pedestrian, etc.)
+- [x] ⭐ Begin integration of other models (sign, light, pedestrian, etc.)
+- [ ] Adaptive Cruise Control utalizitng radar sensor
 
 **Future / Stretch Goals**
 - [x] ⭐ Real-time sensor fusion (camera, radar, LiDAR)

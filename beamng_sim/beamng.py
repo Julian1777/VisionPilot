@@ -5,8 +5,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from beamng_sim.utils.pid_controller import PIDController
 
 from beamngpy import BeamNGpy, Scenario, Vehicle
-from beamngpy.sensors import Camera, Lidar
+from beamngpy.sensors import Camera, Lidar, Radar
 import cv2
+from ultralytics import YOLO
+import tensorflow as tf
 
 import numpy as np
 import time
@@ -16,6 +18,8 @@ from beamng_sim.lane_detection.main import process_frame as lane_detection_proce
 from beamng_sim.sign.main import process_frame as sign_process_frame
 from beamng_sim.vehicle_obstacle.main import process_frame as vehicle_obstacle_process_frame
 from beamng_sim.lidar.main import process_frame as lidar_process_frame
+from beamng_sim.radar.main import process_frame as radar_process_frame
+
 from beamng_sim.lidar.lidar_lane_debug import LiveLidarDebugWindow
 
 MODELS = {}
@@ -27,8 +31,6 @@ def yaw_to_quat(yaw_deg):
     return (0.0, 0.0, z, w)
 
 def load_models():
-    from ultralytics import YOLO
-    import tensorflow as tf
     from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL
     
     from beamng_sim.sign.detect_classify import random_brightness
@@ -106,7 +108,22 @@ def sim_setup():
         pos=(0, 0.2, 1.8),
     )
 
-    return beamng, scenario,vehicle, camera, lidar
+    radar = Radar(
+        "radar1",
+        beamng,
+        vehicle,
+        requested_update_time=0.1,
+        pos=(0, 2.5, 0.5),
+        dir=(0, -1, 0),
+        range_min=2,
+        range_max=120,
+        vel_min=-40,
+        vel_max=40,
+        half_angle_deg=15,
+        field_of_view_y=70,
+    )
+
+    return beamng, scenario,vehicle, camera, lidar, radar
 
 def get_vehicle_speed(vehicle):
 
@@ -162,7 +179,7 @@ def vehicle_obstacle_detection(img):
 def main():
     load_models()
     
-    beamng, scenario, vehicle, camera, lidar = sim_setup()
+    beamng, scenario, vehicle, camera, lidar, radar = sim_setup()
 
     debug_window = LiveLidarDebugWindow()
 
@@ -201,6 +218,8 @@ def main():
             # Vehicle & Obstacle Detection
             vehicle_detections, vehicle_img = vehicle_obstacle_detection(img)
             cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
+
+            radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph, debug_window=None)
 
             # Lidar Road Boundaries
             lidar_boundaries = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng, speed=speed_kph, debug_window=debug_window)
