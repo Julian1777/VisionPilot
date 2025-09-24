@@ -1,5 +1,5 @@
 
-def process_frame(radar_sensor, camera_detections, speed, debug_window=None):
+def process_frame(radar_sensor, camera_detections, speed):
     try:
         radar_data = radar_sensor.poll()
         

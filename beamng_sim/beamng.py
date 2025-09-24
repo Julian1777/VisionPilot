@@ -6,13 +6,19 @@ from beamng_sim.utils.pid_controller import PIDController
 
 from beamngpy import BeamNGpy, Scenario, Vehicle
 from beamngpy.sensors import Camera, Lidar, Radar
-import cv2
+
 from ultralytics import YOLO
 import tensorflow as tf
+
+from beamng_sim.sign.detect_classify import random_brightness
+from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL
+
 
 import numpy as np
 import time
 import math
+import cv2
+
 
 from beamng_sim.lane_detection.main import process_frame as lane_detection_process_frame
 from beamng_sim.sign.main import process_frame as sign_process_frame
@@ -22,6 +28,7 @@ from beamng_sim.radar.main import process_frame as radar_process_frame
 
 from beamng_sim.lidar.lidar_lane_debug import LiveLidarDebugWindow
 
+
 MODELS = {}
 
 def yaw_to_quat(yaw_deg):
@@ -30,25 +37,21 @@ def yaw_to_quat(yaw_deg):
     z = math.sin(yaw / 2)
     return (0.0, 0.0, z, w)
 
-def load_models():
-    from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL
-    
-    from beamng_sim.sign.detect_classify import random_brightness
-    
-    print("Loading models...")
+def load_models():    
+    print("Loading models")
     
     # Load sign detection model
     MODELS['sign_detect'] = YOLO(str(SIGN_DETECTION_MODEL))
     print("Sign detection model loaded")
     
-    # Load sign classification model with custom objects
+    # Load sign classification model with custom objects used during training
     MODELS['sign_classify'] = tf.keras.models.load_model(
         str(SIGN_CLASSIFICATION_MODEL), 
         custom_objects={"random_brightness": random_brightness}
     )
     print("Sign classification model loaded")
     
-    print("All models loaded successfully!")
+    print("All models loaded!")
 
 
 def sim_setup():
@@ -113,7 +116,7 @@ def sim_setup():
         beamng,
         vehicle,
         requested_update_time=0.1,
-        pos=(0, 2.5, 0.5),
+        pos=(0, -2.5, 0.5),
         dir=(0, -1, 0),
         range_min=2,
         range_max=120,
@@ -147,7 +150,7 @@ def lane_detection(img, speed_kph, pid, previous_steering, base_throttle, steeri
     if deviation is None or lane_center is None or vehicle_center is None:
         deviation, lane_center, vehicle_center = 0.0, 0.0, 0.0
     
-    if abs(deviation) > 2.5:  # Increased from 1.0 to 2.5 meters - let car try to correct larger deviations
+    if abs(deviation) > 2.5:
         print(f"Large deviation detected: {deviation:.2f}m - attempting correction")
         deviation = np.clip(deviation, -2.5, 2.5)
 
@@ -187,7 +190,7 @@ def main():
 
     base_throttle = 0.05
     steering_bias = 0
-    max_steering_change = 0.08
+    max_steering_change = 0.1
     previous_steering = 0.0
 
     frame_count = 0
@@ -220,7 +223,7 @@ def main():
             vehicle_detections, vehicle_img = vehicle_obstacle_detection(img)
             cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
 
-            radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph, debug_window=None)
+            radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph)
 
             # Lidar Road Boundaries
             lidar_boundaries = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng, speed=speed_kph, debug_window=None)
@@ -232,7 +235,6 @@ def main():
             previous_steering = steering
             vehicle.control(steering=steering, throttle=throttle, brake=0.0)
 
-            # Debug every 20 frames
             if step_i % 20 == 0:
                 print(f"[{step_i}] Deviation: {deviation:.3f}m | Steering: {steering:.3f} | Throttle: {throttle:.3f}")
                 print(f"Frame {step_i}: lane_center={lane_center}, vehicle_center={vehicle_center}")
@@ -246,7 +248,6 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        vehicle.control(throttle=0, steering=0, brake=1.0)
         cv2.destroyAllWindows()
         beamng.close()
         debug_window.close()
