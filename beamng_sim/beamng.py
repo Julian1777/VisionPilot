@@ -81,52 +81,67 @@ def sim_setup():
     beamng.scenario.load(scenario)
     beamng.scenario.start()
 
-    camera = Camera(
-        'front_cam',
-        beamng,
-        vehicle,
-        requested_update_time=0.01,
-        is_using_shared_memory=True,
-        pos=(0, -1.3, 1.4),
-        dir=(0, -1, 0),
-        field_of_view_y=90,
-        near_far_planes=(0.1, 1000),
-        resolution=(640, 360),
-        is_streaming=True,
-        is_render_colours=True,
-    )
+    try:
+        camera = Camera(
+            'front_cam',
+            beamng,
+            vehicle,
+            requested_update_time=0.01,
+            is_using_shared_memory=True,
+            pos=(0, -1.3, 1.4),
+            dir=(0, -1, 0),
+            field_of_view_y=90,
+            near_far_planes=(0.1, 1000),
+            resolution=(640, 360),
+            is_streaming=True,
+            is_render_colours=True,
+        )
+        print("Camera initialized")
+    except Exception as e:
+        print(f"Camera initialization error: {e}")
+        camera = None
+    try:
+        lidar = Lidar(
+            "lidar1",
+            beamng,
+            vehicle,
+            requested_update_time=0.01,
+            is_using_shared_memory=True,
+            is_360_mode=False,
+            horizontal_angle=120,  # Horizontal field of view
+            vertical_angle=30,  # Vertical field of view
+            vertical_resolution=50,  # Number of lasers/channels
+            density=10,
+            frequency=20,
+            max_distance=100,
+            pos=(0, -0.35, 1.425),
+            is_visualised=False,
+        )
+        print("LiDAR initialized")
+    except Exception as e:
+        print(f"LiDAR initialization error: {e}")
+        lidar = None
+    
+    # try:
+    #     radar = Radar(
+    #         "radar1",
+    #         beamng,
+    #         vehicle,
+    #         requested_update_time=0.01,
+    #         pos=(0, -2.5, 0.5),
+    #         dir=(0, -1, 0),
+    #         range_min=2,
+    #         range_max=120,
+    #         vel_min=-40,
+    #         vel_max=40,
+    #         field_of_view_y=70,
+    #     )
+    #     print("Radar initialized")
+    # except Exception as e:
+    #     print(f"Radar initialization error: {e}")
+    #     radar = None
 
-    lidar = Lidar(
-        "lidar1",
-        beamng,
-        vehicle,
-        requested_update_time=0.01,
-        is_using_shared_memory=True,
-        is_360_mode=False,  # Might set to true for mapping later
-        vertical_angle=30,  # Vertical field of view
-        vertical_resolution=64,  # Number of lasers/channels
-        density=10,
-        frequency=20,
-        max_distance=100,
-        pos=(0, 0.2, 1.8),
-    )
-
-    radar = Radar(
-        "radar1",
-        beamng,
-        vehicle,
-        requested_update_time=0.1,
-        pos=(0, -2.5, 0.5),
-        dir=(0, -1, 0),
-        range_min=2,
-        range_max=120,
-        vel_min=-40,
-        vel_max=40,
-        half_angle_deg=15,
-        field_of_view_y=70,
-    )
-
-    return beamng, scenario,vehicle, camera, lidar, radar
+    return beamng, scenario, vehicle, camera, lidar, # radar
 
 def get_vehicle_speed(vehicle):
 
@@ -180,9 +195,38 @@ def vehicle_obstacle_detection(img):
 #     return lidar_detections, lidar_obj_img
 
 def main():
-    load_models()
+    try:
+        load_models()
+    except Exception as e:
+        print(f"Model loading error: {e}")
+        return
     
-    beamng, scenario, vehicle, camera, lidar, radar = sim_setup()
+    beamng, scenario, vehicle, camera, lidar = sim_setup()
+    print("Simulation setup complete")
+
+    print("Wait for sensors to initialize")
+    time.sleep(3)
+    
+    try:
+        print("Testing camera...")
+        camera_test = camera.poll()
+        print(f"Camera working: {type(camera_test)}")
+    except Exception as e:
+        print(f"Camera error: {e}")
+        
+    try:
+        print("Testing lidar...")
+        lidar_test = lidar.poll()
+        print(f"LiDAR working: {type(lidar_test)}")
+    except Exception as e:
+        print(f"LiDAR error: {e}")
+
+    # try:
+    #     print("Testing radar...")
+    #     radar_test = radar.poll()
+    #     print(f"Radar working: {type(radar_test)}")
+    # except Exception as e:
+    #     print(f"Radar error: {e}")
 
     debug_window = LiveLidarDebugWindow()
 
@@ -202,12 +246,23 @@ def main():
             current_time = time.time()
             dt = current_time - last_time
             last_time = current_time
-            beamng.control.step(10)
+
+            try:
+                print(f"Stepping simulation")
+                beamng.control.step(10)
+            except Exception as e:
+                print(f"Simulation step error: {e}")
+
             images = camera.stream()
             img = np.array(images['colour'])
 
             # Speed
-            speed_mps, speed_kph = get_vehicle_speed(vehicle)
+            try:
+                print("Getting vehicle speed")
+                speed_mps, speed_kph = get_vehicle_speed(vehicle)
+            except Exception as e:
+                print(f"Speed retrieval error: {e}")
+                break
 
             # Lane Detection
             result, steering, throttle, deviation, lane_center, vehicle_center = lane_detection(
@@ -223,7 +278,7 @@ def main():
             vehicle_detections, vehicle_img = vehicle_obstacle_detection(img)
             cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
 
-            radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph)
+            # radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph)
 
             # Lidar Road Boundaries
             lidar_boundaries = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng, speed=speed_kph, debug_window=None)
