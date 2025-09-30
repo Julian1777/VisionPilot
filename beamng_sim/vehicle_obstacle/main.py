@@ -1,17 +1,17 @@
 from beamng_sim.vehicle_obstacle.vehicle_obstacle_detection import detect_vehicles_pedestrians
 import cv2
 
-def process_frame(frame, draw_detections=True):
+def process_frame(img, draw_detections=True):
     try:
-        detections = detect_vehicles_pedestrians(frame)
-        
+        detections = detect_vehicles_pedestrians(img)
+
         if not detections:
             detections = []
         
-        result_img = frame
+        result_img = img
         
         if draw_detections:
-            result_img = frame.copy()
+            result_img = img.copy()
             for det in detections:
                 bbox = det['bbox']
                 label = f"{det['class']} ({det['confidence']:.2f})"
@@ -20,5 +20,5 @@ def process_frame(frame, draw_detections=True):
 
         return detections, result_img
     except Exception as e:
-        print(f"Error processing vehicle/pedestrian frame: {e}")
-        return [], frame
+        print(f"Error processing obstacle frame: {e}")
+        return [], img
