@@ -270,6 +270,8 @@ def main():
             # Speed
             try:
                 speed_mps, speed_kph = get_vehicle_speed(vehicle)
+                speed_mps = abs(speed_mps)
+                speed_kph = abs(speed_kph)
             except Exception as e:
                 print(f"Speed retrieval error: {e}")
                 break
@@ -303,7 +305,7 @@ def main():
             # radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph)
 
             # Lidar Road Boundaries
-            lidar_lane_boundaries = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng, speed=speed_kph, debug_window=None)
+            lidar_lane_boundaries = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng, speed=speed_kph, debug_window=debug_window)
 
             # Lidar Object Detection
             # lidar_detections, lidar_obj_img = lidar_object_detections(lidar, camera_detections=vehicle_detections)
