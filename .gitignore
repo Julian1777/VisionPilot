@@ -4,6 +4,7 @@ datasets/
 
 models/
 videos/
+*.mp4
 
 .DS_Store
 Thumbs.db
@@ -21,4 +22,5 @@ __pycache__/
 *.pkl
 
 *.jar
+
 lane-detection-cnn/unet/lane_detection_unet.py

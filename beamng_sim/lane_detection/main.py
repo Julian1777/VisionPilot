@@ -1,9 +1,9 @@
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from beamng_sim.lane_detection.thresholding import apply_thresholds
+from beamng_sim.lane_detection.cv.thresholding import apply_thresholds
 from beamng_sim.lane_detection.perspective import get_src_points,perspective_warp
-from beamng_sim.lane_detection.lane_finder import get_histogram, sliding_window_search
+from beamng_sim.lane_detection.cv.lane_finder import get_histogram, sliding_window_search
 from beamng_sim.lane_detection.metrics import calculate_curvature_and_deviation, process_deviation
 from beamng_sim.lane_detection.visualization import draw_lane_overlay, add_text_overlay
 import numpy as np
