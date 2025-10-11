@@ -8,7 +8,7 @@ from beamngpy import BeamNGpy, Scenario, Vehicle
 from beamngpy.sensors import Camera, Lidar, Radar
 
 from beamng_sim.sign.detect_classify import random_brightness
-from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL
+from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL, UNET_LANE_DETECTION_MODEL
 
 from ultralytics import YOLO
 import tensorflow as tf
@@ -67,6 +67,10 @@ def load_models():
     # Vehicle detection model 
     MODELS['vehicle'] = YOLO(str(VEHICLE_PEDESTRIAN_MODEL))
     print("Vehicle detection model loaded")
+
+    # Lane detection UNET model
+    MODELS['lane_unet'] = tf.keras.models.load_model(str(UNET_LANE_DETECTION_MODEL))
+    print("Lane detection UNET model loaded")
     
     print("All models loaded!")
 
@@ -187,9 +191,15 @@ def get_vehicle_speed(vehicle):
 def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change):
 
     cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=True)
-    unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=True)
+    unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=True)
 
     fused_metrics = lane_detection_fused(cv_metrics, cv_conf, unet_metrics, unet_conf)
+
+    fused_result = cv_result if cv_conf > unet_conf else unet_result # CHANGE
+
+    cv2.imshow('Lane Detection CV', cv_result)
+    cv2.imshow('Lane Detection UNet', unet_result)
+    cv2.imshow('Lane Detection Fused', fused_result)
 
     deviation = fused_metrics.get('deviation', 0.0)
     smoothed_deviation = fused_metrics.get('smoothed_deviation', 0.0)
