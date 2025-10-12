@@ -17,6 +17,8 @@ import cv2
 
 
 def process_frame_cv(img, speed=0, previous_steering=0, debug_display=False):
+    previous_fit = None
+    confidence = 0.0
     try:
 
         src_points = get_src_points(img.shape, speed, previous_steering)
@@ -34,6 +36,8 @@ def process_frame_cv(img, speed=0, previous_steering=0, debug_display=False):
         
         histogram = get_histogram(binary_warped)
         ploty, left_fit, right_fit, left_fitx, right_fitx = sliding_window_search(binary_warped, histogram)
+
+        current_fit = (left_fit, right_fit)
         
         if debug_display:
             lane_img = np.zeros_like(img)
@@ -55,15 +59,17 @@ def process_frame_cv(img, speed=0, previous_steering=0, debug_display=False):
         
         metrics_result = calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warped)
 
-        confidence = compute_confidence_cv(left_fitx, right_fitx, ploty)
-        
-        if metrics_result == (None, None, None, None, None):
-            left_curverad, right_curverad, deviation, lane_center, vehicle_center = None, None, None, None, None
+        confidence = compute_confidence_cv(left_fitx, right_fitx, ploty, current_fit=current_fit, previous_fit=previous_fit)
+
+        previous_fit = current_fit
+
+        if metrics_result == (None, None, None, None, None, None):
+            left_curverad, right_curverad, deviation, lane_center, vehicle_center, lane_width = None, None, None, None, None, None
             smoothed_deviation = 0.0
             effective_deviation = 0.0
             print("Lane detection metrics calculation returned None values")
         else:
-            left_curverad, right_curverad, deviation, lane_center, vehicle_center = metrics_result
+            left_curverad, right_curverad, deviation, lane_center, vehicle_center, lane_width = metrics_result
             smoothed_deviation, effective_deviation = process_deviation(deviation)
 
         result = draw_lane_overlay(img, binary_warped, Minv, left_fitx, right_fitx, ploty, deviation)
@@ -76,10 +82,12 @@ def process_frame_cv(img, speed=0, previous_steering=0, debug_display=False):
             'smoothed_deviation': smoothed_deviation,
             'effective_deviation': effective_deviation,
             'lane_center': lane_center,
-            'vehicle_center': vehicle_center
+            'vehicle_center': vehicle_center,
+            'lane_width': lane_width,
+            'confidence': confidence
         }
         
-        return result, metrics
+        return result, metrics, confidence
         
     except Exception as e:
         print(f"Lane detection error: {e}")
@@ -92,45 +100,73 @@ def process_frame_cv(img, speed=0, previous_steering=0, debug_display=False):
             'effective_deviation': 0,
             'lane_center': 0,
             'vehicle_center': 0,
+            'lane_width': 0,
+            'confidence': 0,
             'error': str(e)
         }
         return result, metrics, confidence
     
 def process_frame_unet(img, model, speed=0, previous_steering=0, debug_display=True):
-    mask = run_unet_on_frame(img, model)
-    
-    src_points = get_src_points(img.shape, speed, previous_steering)
-    
-    mask = process_unet_mask(mask, src_points, min_area=2000)
-    
-    binary_warped, Minv = perspective_warp(mask, speed=speed, debug_display=debug_display)
+    previous_fit = None
+    confidence = 0.0
+    try:
+        mask = run_unet_on_frame(img, model)
+        
+        src_points = get_src_points(img.shape, speed, previous_steering)
+        
+        mask = process_unet_mask(mask, src_points, min_area=2000)
+        
+        binary_warped, Minv = perspective_warp(mask, speed=speed, debug_display=debug_display)
 
-    histogram = get_histogram(binary_warped)
-    ploty, left_fit, right_fit, left_fitx, right_fitx = sliding_window_search(binary_warped, histogram)
+        histogram = get_histogram(binary_warped)
+        ploty, left_fit, right_fit, left_fitx, right_fitx = sliding_window_search(binary_warped, histogram)
 
-    metrics_result = calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warped)
-    confidence = compute_confidence_unet(left_fitx, right_fitx, ploty) # pass roi
+        current_fit = (left_fit, right_fit)
 
-    if metrics_result == (None, None, None, None, None):
-        left_curverad, right_curverad, deviation, lane_center, vehicle_center = None, None, None, None, None
-        smoothed_deviation = 0.0
-        effective_deviation = 0.0
-        print("Lane detection metrics calculation returned None values")
-    else:
-        left_curverad, right_curverad, deviation, lane_center, vehicle_center = metrics_result
-        smoothed_deviation, effective_deviation = process_deviation(deviation)
+        metrics_result = calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warped)
+        confidence = compute_confidence_unet(left_fitx, right_fitx, ploty, current_fit=current_fit, previous_fit=previous_fit)
 
-    result = draw_lane_overlay(img, binary_warped, Minv, left_fitx, right_fitx, ploty, deviation)
-    result = add_text_overlay(result, left_curverad, right_curverad, deviation, 0, speed)
+        previous_fit = current_fit
 
-    metrics = {
-        'left_curverad': left_curverad,
-        'right_curverad': right_curverad,
-        'deviation': deviation,
-        'smoothed_deviation': smoothed_deviation,
-        'effective_deviation': effective_deviation,
-        'lane_center': lane_center,
-        'vehicle_center': vehicle_center
-    }
+        if metrics_result == (None, None, None, None, None, None):
+            left_curverad, right_curverad, deviation, lane_center, vehicle_center, lane_width = None, None, None, None, None, None
+            smoothed_deviation = 0.0
+            effective_deviation = 0.0
+            print("Lane detection metrics calculation returned None values")
+        else:
+            left_curverad, right_curverad, deviation, lane_center, vehicle_center, lane_width = metrics_result
+            smoothed_deviation, effective_deviation = process_deviation(deviation)
 
-    return result, metrics, confidence
+        result = draw_lane_overlay(img, binary_warped, Minv, left_fitx, right_fitx, ploty, deviation)
+        result = add_text_overlay(result, left_curverad, right_curverad, deviation, 0, speed)
+
+        metrics = {
+            'left_curverad': left_curverad,
+            'right_curverad': right_curverad,
+            'deviation': deviation,
+            'smoothed_deviation': smoothed_deviation,
+            'effective_deviation': effective_deviation,
+            'lane_center': lane_center,
+            'vehicle_center': vehicle_center,
+            'lane_width': lane_width,
+            'confidence': confidence
+        }
+
+        return result, metrics, confidence
+
+    except Exception as e:
+        print(f"Lane detection error: {e}")
+        result = img.copy()
+        metrics = {
+            'left_curverad': 0,
+            'right_curverad': 0,
+            'deviation': 0,
+            'smoothed_deviation': 0,
+            'effective_deviation': 0,
+            'lane_center': 0,
+            'vehicle_center': 0,
+            'lane_width': 0,
+            'confidence': 0,
+            'error': str(e)
+        }
+        return result, metrics, confidence

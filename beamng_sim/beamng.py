@@ -27,7 +27,7 @@ from beamng_sim.vehicle_obstacle.main import process_frame as vehicle_obstacle_p
 from beamng_sim.lidar.main import process_frame as lidar_process_frame
 from beamng_sim.radar.main import process_frame as radar_process_frame
 
-from beamng_sim.lane_detection.fusion import lane_detection_fused
+from beamng_sim.lane_detection.fusion import fuse_lane_metrics
 
 from beamng_sim.lidar.lidar_lane_debug import LiveLidarDebugWindow
 
@@ -193,7 +193,7 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
     cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=True)
     unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=True)
 
-    fused_metrics = lane_detection_fused(cv_metrics, cv_conf, unet_metrics, unet_conf)
+    fused_metrics = fuse_lane_metrics(cv_metrics, cv_conf, unet_metrics, unet_conf)
 
     fused_result = cv_result if cv_conf > unet_conf else unet_result # CHANGE
 
@@ -330,7 +330,6 @@ def main():
             result, steering, throttle, deviation, lane_center, vehicle_center = lane_detection_fused(
                 img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change
             )
-            cv2.imshow('Lane Detection', cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
 
             # Log to CSV
             log_writer.writerow({

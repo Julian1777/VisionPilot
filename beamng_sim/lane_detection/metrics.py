@@ -193,11 +193,11 @@ def calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warpe
             print(f"Unreasonable deviation detected: {deviation_m:.2f}m, clipping to {max_reasonable_deviation:.2f}m")
             deviation_m = np.clip(deviation_m, -max_reasonable_deviation, max_reasonable_deviation)
 
-        return left_curverad, right_curverad, deviation_m, lane_center, vehicle_center
+        return left_curverad, right_curverad, deviation_m, lane_center, vehicle_center, lane_width_pix
         
     except Exception as e:
         print(f"Error in curvature calculation: {e}")
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
 
 def process_deviation(raw_deviation, alpha=0.65, dead_zone=0.1, max_dev=2.0):
