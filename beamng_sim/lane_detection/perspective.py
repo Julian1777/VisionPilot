@@ -51,6 +51,9 @@ def perspective_warp(img, speed=0, debug_display=False):
     Returns:
         tuple: (warped image, inverse perspective transform matrix)
     """
+    if debug_display:
+        debug_perspective_live(img, speed, previous_steering=0)
+        
     img_size = (img.shape[1], img.shape[0])
     w, h = img_size
 
@@ -67,10 +70,6 @@ def perspective_warp(img, speed=0, debug_display=False):
     Minv = cv2.getPerspectiveTransform(dst, src)
 
     binary_warped = cv2.warpPerspective(img, M, img_size, flags=cv2.INTER_LINEAR)
-    
-    # Debug perspective transform
-    if debug_display:
-        debug_perspective_live(img, speed, previous_steering=0)
     
     return binary_warped, Minv
 
@@ -105,3 +104,4 @@ def debug_perspective_live(img, speed_kph, previous_steering=0):
                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     
     cv2.imshow('Perspective Transform Debug', debug_img)
+    cv2.waitKey(1)

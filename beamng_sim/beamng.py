@@ -21,7 +21,6 @@ import datetime
 
 from beamng_sim.lane_detection.main import process_frame_cv as lane_detection_cv_process_frame
 from beamng_sim.lane_detection.main import process_frame_unet as lane_detection_unet_process_frame
-from beamng_sim.lane_detection.perspective import debug_perspective_live
 from beamng_sim.sign.main import process_frame as sign_process_frame
 from beamng_sim.vehicle_obstacle.main import process_frame as vehicle_obstacle_process_frame
 from beamng_sim.lidar.main import process_frame as lidar_process_frame
@@ -188,10 +187,31 @@ def get_vehicle_speed(vehicle):
     return speed_mps, speed_kph
 
 
-def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change):
+def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change, step_i):
 
-    cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=True)
-    unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=True)
+    # Use static variables to store last UNet result/metrics/confidence
+    if not hasattr(lane_detection_fused, "unet_cache"):
+        lane_detection_fused.unet_cache = {
+            'result': None,
+            'metrics': None,
+            'conf': 0.0,
+            'last_frame': -5
+        }
+
+    cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=False)
+
+    if lane_detection_fused.unet_cache['last_frame'] is None or step_i - lane_detection_fused.unet_cache['last_frame'] >= 5:
+        unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=False)
+        lane_detection_fused.unet_cache = {
+            'result': unet_result,
+            'metrics': unet_metrics,
+            'conf': unet_conf,
+            'last_frame': step_i
+        }
+    else:
+        unet_result = lane_detection_fused.unet_cache['result']
+        unet_metrics = lane_detection_fused.unet_cache['metrics']
+        unet_conf = lane_detection_fused.unet_cache['conf']
 
     fused_metrics = fuse_lane_metrics(cv_metrics, cv_conf, unet_metrics, unet_conf)
 
@@ -328,7 +348,7 @@ def main():
 
             # Lane Detection
             result, steering, throttle, deviation, lane_center, vehicle_center = lane_detection_fused(
-                img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change
+                img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change, step_i=step_i
             )
 
             # Log to CSV
@@ -342,7 +362,8 @@ def main():
                 "speed_kph": round(speed_kph, 3)
             })
 
-            if step_i % 10 == 0:
+
+            if step_i % 20 == 0:
                 # Sign Detection
                 sign_detections, sign_img = sign_detection_classification(img)
                 cv2.imshow('Sign Detection', sign_img)

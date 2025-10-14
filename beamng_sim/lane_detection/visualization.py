@@ -95,3 +95,37 @@ def add_text_overlay(image, left_curverad, right_curverad, deviation, avg_bright
     cv2.putText(image, f"Speed: {speed:.1f} kph", (30, 210), fontType, 1.2, (255, 255, 255), 1)
     
     return image
+
+def create_mask_overlay(img, mask, alpha=0.4, color=(0, 255, 0)):
+    """
+    Create an overlay of a binary mask on the original image.
+    
+    Args:
+        img: The original image (BGR)
+        mask: Binary mask (0s and 1s)
+        alpha: Transparency of the overlay (0.0 to 1.0)
+        color: Color of the mask overlay (BGR tuple)
+    
+    Returns:
+        Image with mask overlay
+    """
+    try:
+        # Ensure mask is the right size
+        if mask.shape[:2] != img.shape[:2]:
+            mask = cv2.resize(mask, (img.shape[1], img.shape[0]))
+        
+        overlay = img.copy()
+        mask_bool = mask > 0
+        
+        for c in range(3):
+            overlay[..., c] = np.where(
+                mask_bool,
+                (1 - alpha) * overlay[..., c] + alpha * color[c],
+                overlay[..., c]
+            )
+        
+        return overlay.astype(np.uint8)
+        
+    except Exception as e:
+        print(f"Error in create_mask_overlay: {e}")
+        return img
