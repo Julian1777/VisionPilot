@@ -198,10 +198,10 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
             'last_frame': -5
         }
 
-    cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=False)
+    cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=False, perspective_debug_display=True)
 
     if lane_detection_fused.unet_cache['last_frame'] is None or step_i - lane_detection_fused.unet_cache['last_frame'] >= 5:
-        unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=False)
+        unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=True)
         lane_detection_fused.unet_cache = {
             'result': unet_result,
             'metrics': unet_metrics,
@@ -212,6 +212,8 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
         unet_result = lane_detection_fused.unet_cache['result']
         unet_metrics = lane_detection_fused.unet_cache['metrics']
         unet_conf = lane_detection_fused.unet_cache['conf']
+    
+    print(f"CV Conf: {cv_conf:.3f}, UNet Conf: {unet_conf:.3f}")
 
     fused_metrics = fuse_lane_metrics(cv_metrics, cv_conf, unet_metrics, unet_conf)
 
@@ -219,7 +221,7 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
 
     cv2.imshow('Lane Detection CV', cv_result)
     cv2.imshow('Lane Detection UNet', unet_result)
-    cv2.imshow('Lane Detection Fused', fused_result)
+    #cv2.imshow('Lane Detection Fused', fused_result)
 
     deviation = fused_metrics.get('deviation', 0.0)
     smoothed_deviation = fused_metrics.get('smoothed_deviation', 0.0)

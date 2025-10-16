@@ -23,8 +23,12 @@ def fuse_lane_metrics(cv_metrics, cv_conf, unet_metrics, unet_conf):
             'confidence': 0.0
         }
     def weighted(key):
-        return (cv_metrics.get(key, 0.0) * cv_conf + unet_metrics.get(key, 0.0) * unet_conf) / total_conf
-    
+        cv_val = cv_metrics.get(key, 0.0)
+        unet_val = unet_metrics.get(key, 0.0)
+        fused_val = (cv_val * cv_conf + unet_val * unet_conf) / total_conf
+        print(f"Fusing '{key}': CV={cv_val:.2f}, UNet={unet_val:.2f}, CV_conf={cv_conf:.2f}, UNet_conf={unet_conf:.2f} => Fused={fused_val:.2f}")
+        return fused_val
+
     fused = {
         'left_curverad': weighted('left_curverad'),
         'right_curverad': weighted('right_curverad'),
@@ -35,4 +39,5 @@ def fuse_lane_metrics(cv_metrics, cv_conf, unet_metrics, unet_conf):
         'vehicle_center': weighted('vehicle_center'),
         'confidence': max(cv_conf, unet_conf)
     }
+    print(f"Fused metrics: {fused}")
     return fused

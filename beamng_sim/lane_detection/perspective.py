@@ -51,8 +51,6 @@ def perspective_warp(img, speed=0, debug_display=False):
     Returns:
         tuple: (warped image, inverse perspective transform matrix)
     """
-    if debug_display:
-        debug_perspective_live(img, speed, previous_steering=0)
         
     img_size = (img.shape[1], img.shape[0])
     w, h = img_size

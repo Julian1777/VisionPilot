@@ -60,7 +60,7 @@ def draw_lane_overlay(original_image, warped_image, Minv, left_fitx, right_fitx,
         return original_image
 
 
-def add_text_overlay(image, left_curverad, right_curverad, deviation, avg_brightness, speed):
+def add_text_overlay(image, left_curverad, right_curverad, deviation, avg_brightness, speed, confidence):
     """
     Add text overlay with lane curvature, deviation, average brightness, and speed.
     Args:
@@ -70,6 +70,7 @@ def add_text_overlay(image, left_curverad, right_curverad, deviation, avg_bright
         deviation: Vehicle deviation from lane center in meters
         avg_brightness: Average brightness of the image
         speed: Vehicle speed in km/h
+        confidence: Confidence score of lane detection (0.0 to 1.0)
     Returns:
         Image with text overlay
     """
@@ -92,7 +93,15 @@ def add_text_overlay(image, left_curverad, right_curverad, deviation, avg_bright
 
     cv2.putText(image, f"Avg Brightness: {avg_brightness:.1f}", (30, 160), fontType, 1.2, (255, 255, 255), 1)
 
-    cv2.putText(image, f"Speed: {speed:.1f} kph", (30, 210), fontType, 1.2, (255, 255, 255), 1)
+    if confidence is not None:
+        cv2.putText(image, f"Confidence: {confidence:.2f}", (30, 210), fontType, 1.2, (255, 255, 255), 1)
+    else:
+        cv2.putText(image, "Confidence: N/A", (30, 210), fontType, 1.2, (255, 255, 255), 1)
+
+    if speed is not None:
+        cv2.putText(image, f"Speed: {speed:.1f} kph", (30, 260), fontType, 1.2, (255, 255, 255), 1)
+    else:
+        cv2.putText(image, "Speed: N/A", (30, 260), fontType, 1.2, (255, 255, 255), 1)
     
     return image
 
@@ -110,9 +119,28 @@ def create_mask_overlay(img, mask, alpha=0.4, color=(0, 255, 0)):
         Image with mask overlay
     """
     try:
-        # Ensure mask is the right size
+        if img.dtype != np.uint8:
+            img = img.astype(np.uint8)
+        
+        mask_debug = mask.copy() if mask.max() <= 1 else (mask > 0).astype(np.uint8)
+        mask_debug_display = mask_debug * 255
+        if mask_debug_display.shape[:2] != img.shape[:2]:
+            mask_debug_display = cv2.resize(mask_debug_display, (img.shape[1], img.shape[0]))
+        cv2.imshow('Debug: Mask Before Overlay', mask_debug_display)
+            
         if mask.shape[:2] != img.shape[:2]:
+            print(f"Resizing mask from {mask.shape} to {img.shape[:2]}")
             mask = cv2.resize(mask, (img.shape[1], img.shape[0]))
+        
+        if mask.max() > 1:
+            print("Normalizing mask to binary")
+            mask = (mask > 0).astype(np.uint8)
+        
+        print(f"Mask stats: min={mask.min()}, max={mask.max()}, count of positive={np.count_nonzero(mask)}")
+        
+        colored_mask = np.zeros_like(img)
+        colored_mask[mask > 0] = color
+        cv2.imshow('Debug: Colored Mask', colored_mask)
         
         overlay = img.copy()
         mask_bool = mask > 0
@@ -124,7 +152,13 @@ def create_mask_overlay(img, mask, alpha=0.4, color=(0, 255, 0)):
                 overlay[..., c]
             )
         
-        return overlay.astype(np.uint8)
+        result = overlay.astype(np.uint8)
+        
+        debug_comparison = np.hstack([img, result])
+        cv2.imshow('Debug: Original vs Overlay', debug_comparison)
+        
+        print(f"Overlay created with shape {result.shape}")
+        return result
         
     except Exception as e:
         print(f"Error in create_mask_overlay: {e}")

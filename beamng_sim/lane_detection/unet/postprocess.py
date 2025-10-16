@@ -129,6 +129,13 @@ def run_unet_on_frame(img, model):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) if img.shape[2] == 3 else img
     img_resized = cv2.resize(img_rgb, (IMG_SIZE[1], IMG_SIZE[0]))
     input_tensor = np.expand_dims(img_resized, axis=0)
+    
+    print(f"UNet input tensor shape: {input_tensor.shape}, dtype: {input_tensor.dtype}")
+    
     pred = model.predict(input_tensor, verbose=0)[0]
-    pred_mask = (pred.squeeze() >= 0.5).astype(np.uint8)
+    
+    print(f"UNet raw prediction: shape={pred.shape}, min={pred.min():.4f}, max={pred.max():.4f}, mean={pred.mean():.4f}")
+    
+    pred_mask = (pred.squeeze() >= 0.2).astype(np.uint8)
+    
     return pred_mask
