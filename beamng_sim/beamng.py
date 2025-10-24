@@ -8,10 +8,11 @@ from beamngpy import BeamNGpy, Scenario, Vehicle
 from beamngpy.sensors import Camera, Lidar, Radar
 
 from beamng_sim.sign.detect_classify import random_brightness
-from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL, UNET_LANE_DETECTION_MODEL
+from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL, UNET_LANE_DETECTION_MODEL, SCNN_LANE_DETECTION_MODEL, CAMERA_CALIBRATION
 
 from ultralytics import YOLO
 import tensorflow as tf
+import torch
 import numpy as np
 import time
 import math
@@ -21,14 +22,16 @@ import datetime
 
 from beamng_sim.lane_detection.main import process_frame_cv as lane_detection_cv_process_frame
 from beamng_sim.lane_detection.main import process_frame_unet as lane_detection_unet_process_frame
+from beamng_sim.lane_detection.main import process_frame_scnn as lane_detection_scnn_process_frame
 from beamng_sim.sign.main import process_frame as sign_process_frame
 from beamng_sim.vehicle_obstacle.main import process_frame as vehicle_obstacle_process_frame
 from beamng_sim.lidar.main import process_frame as lidar_process_frame
 from beamng_sim.radar.main import process_frame as radar_process_frame
 
 from beamng_sim.lane_detection.fusion import fuse_lane_metrics
+from beamng_sim.lane_detection.perspective import load_calibration
 
-from beamng_sim.lidar.lidar_lane_debug import LiveLidarDebugWindow
+from beamng_sim.lidar.lidar_live_debug import LiveLidarDebugWindow2D
 
 MODELS = {}
 
@@ -50,6 +53,8 @@ def load_models():
     Load all the models into a global dictionary for use in detection or classification.
     This way models are only loaded once.
     """
+    global CAMERA_CALIBRATION
+    
     print("Loading models")
 
     # Sign detection model
@@ -71,7 +76,29 @@ def load_models():
     MODELS['lane_unet'] = tf.keras.models.load_model(str(UNET_LANE_DETECTION_MODEL))
     print("Lane detection UNET model loaded")
     
-    print("All models loaded!")
+    # Lane detection SCNN model
+    from beamng_sim.lane_detection.scnn.scnn_model import SCNN
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"SCNN will run on: {device}")
+    
+    scnn_model = SCNN(input_size=(800, 288), pretrained=False)
+    checkpoint = torch.load(str(SCNN_LANE_DETECTION_MODEL), map_location=device)
+    scnn_model.load_state_dict(checkpoint['net'])
+    scnn_model = scnn_model.to(device)
+    scnn_model.eval()
+    
+    MODELS['lane_scnn'] = scnn_model
+    MODELS['scnn_device'] = device
+    print(f"Lane detection SCNN model loaded (device: {device})")
+    
+    # Load camera calibration
+    try:
+        CAMERA_CALIBRATION = load_calibration(str(CAMERA_CALIBRATION))
+        print("Camera calibration loaded successfully")
+    except Exception as e:
+        print(f"Warning: Failed to load camera calibration from {str(CAMERA_CALIBRATION)}: {e}")
+        CAMERA_CALIBRATION = None
+    print("All models loaded successfully!")
 
 
 def sim_setup():
@@ -104,6 +131,7 @@ def sim_setup():
 
     beamng.scenario.load(scenario)
     beamng.scenario.start()
+    
 
     try:
         camera = Camera(
@@ -187,41 +215,52 @@ def get_vehicle_speed(vehicle):
     return speed_mps, speed_kph
 
 
-def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change, step_i):
+def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, max_steering_change, step_i):
 
-    # Use static variables to store last UNet result/metrics/confidence
-    if not hasattr(lane_detection_fused, "unet_cache"):
-        lane_detection_fused.unet_cache = {
+    # Use static variables to store last SCNN result/metrics/confidence
+    if not hasattr(lane_detection_fused, "scnn_cache"):
+        lane_detection_fused.scnn_cache = {
             'result': None,
             'metrics': None,
             'conf': 0.0,
             'last_frame': -5
         }
 
-    cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(img, speed=speed_kph, previous_steering=previous_steering, debug_display=False, perspective_debug_display=True)
+    cv_result, cv_metrics, cv_conf = lane_detection_cv_process_frame(
+        img, speed=speed_kph, previous_steering=previous_steering, 
+        debug_display=True, perspective_debug_display=True,
+        calibration_data=CAMERA_CALIBRATION
+    )
 
-    if lane_detection_fused.unet_cache['last_frame'] is None or step_i - lane_detection_fused.unet_cache['last_frame'] >= 5:
-        unet_result, unet_metrics, unet_conf = lane_detection_unet_process_frame(img, model=MODELS['lane_unet'], speed=speed_kph, previous_steering=previous_steering, debug_display=False)
-        lane_detection_fused.unet_cache = {
-            'result': unet_result,
-            'metrics': unet_metrics,
-            'conf': unet_conf,
+    # Run SCNN every 5 frames (same as UNet was doing)
+    if lane_detection_fused.scnn_cache['last_frame'] is None or step_i - lane_detection_fused.scnn_cache['last_frame'] >= 5:
+        scnn_result, scnn_metrics, scnn_conf = lane_detection_scnn_process_frame(
+            img, model=MODELS['lane_scnn'], device=MODELS['scnn_device'], 
+            speed=speed_kph, previous_steering=previous_steering, 
+            debug_display=False,
+            calibration_data=CAMERA_CALIBRATION
+        )
+        lane_detection_fused.scnn_cache = {
+            'result': scnn_result,
+            'metrics': scnn_metrics,
+            'conf': scnn_conf,
             'last_frame': step_i
         }
     else:
-        unet_result = lane_detection_fused.unet_cache['result']
-        unet_metrics = lane_detection_fused.unet_cache['metrics']
-        unet_conf = lane_detection_fused.unet_cache['conf']
+        scnn_result = lane_detection_fused.scnn_cache['result']
+        scnn_metrics = lane_detection_fused.scnn_cache['metrics']
+        scnn_conf = lane_detection_fused.scnn_cache['conf']
     
-    print(f"CV Conf: {cv_conf:.3f}, UNet Conf: {unet_conf:.3f}")
+    print(f"CV Conf: {cv_conf:.3f}, SCNN Conf: {scnn_conf:.3f}")
 
-    fused_metrics = fuse_lane_metrics(cv_metrics, cv_conf, unet_metrics, unet_conf)
+    fused_metrics = fuse_lane_metrics(cv_metrics, cv_conf, scnn_metrics, scnn_conf, method_name="SCNN")
 
-    fused_result = cv_result if cv_conf > unet_conf else unet_result # CHANGE
+    fused_result = cv_result if cv_conf > scnn_conf else scnn_result
 
     cv2.imshow('Lane Detection CV', cv_result)
-    cv2.imshow('Lane Detection UNet', unet_result)
+    cv2.imshow('Lane Detection SCNN', scnn_result)
     #cv2.imshow('Lane Detection Fused', fused_result)
+
 
     deviation = fused_metrics.get('deviation', 0.0)
     smoothed_deviation = fused_metrics.get('smoothed_deviation', 0.0)
@@ -230,7 +269,6 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
     vehicle_center = fused_metrics.get('vehicle_center', 0.0)
 
     steering = pid.update(-effective_deviation, 0.01)
-    steering += steering_bias
     steering = np.clip(steering, -1.0, 1.0)
     steering_change = steering - previous_steering
     if abs(steering_change) > max_steering_change:
@@ -239,7 +277,7 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
     throttle = base_throttle * (1.0 - 0.3 * abs(steering))
     throttle = np.clip(throttle, 0.05, 0.3)
 
-    result = cv_result if cv_conf > unet_conf else unet_result # CHANGE
+    result = cv_result if cv_conf > scnn_conf else scnn_result
 
     return result, steering, throttle, smoothed_deviation, lane_center, vehicle_center
 
@@ -301,13 +339,13 @@ def main():
     # except Exception as e:
     #     print(f"Radar error: {e}")
 
-    debug_window = LiveLidarDebugWindow()
+    debug_window = LiveLidarDebugWindow2D()
 
-    pid = PIDController(Kp=0.14, Ki=0.0, Kd=0.17)
+    # PID with derivative filtering to prevent sudden "bullet" steering
+    pid = PIDController(Kp=0.015, Ki=0.0, Kd=0.025, derivative_filter_alpha=0.3)
 
-    base_throttle = 0.06
+    base_throttle = 0.2
 
-    steering_bias = 0
     max_steering_change = 0.15
     previous_steering = 0.0
 
@@ -350,7 +388,7 @@ def main():
 
             # Lane Detection
             result, steering, throttle, deviation, lane_center, vehicle_center = lane_detection_fused(
-                img, speed_kph, pid, previous_steering, base_throttle, steering_bias, max_steering_change, step_i=step_i
+                img, speed_kph, pid, previous_steering, base_throttle, max_steering_change, step_i=step_i
             )
 
             # Log to CSV
@@ -377,7 +415,7 @@ def main():
             # radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph)
 
             # Lidar Road Boundaries
-            lidar_lane_boundaries = lidar_process_frame(lidar, camera_detections=vehicle_detections, beamng=beamng, speed=speed_kph, debug_window=debug_window)
+            lidar_lane_boundaries = lidar_process_frame(lidar, beamng=beamng, speed=speed_kph, debug_window=debug_window)
 
             # Lidar Object Detection
             # lidar_detections, lidar_obj_img = lidar_object_detections(lidar, camera_detections=vehicle_detections)
@@ -385,10 +423,6 @@ def main():
             # Steering, throttle, brake inputs
             previous_steering = steering
             vehicle.control(steering=steering, throttle=throttle, brake=0.0)
-
-            if step_i % 5 == 0:
-                print(f"[{step_i}] Deviation: {deviation:.3f}m | Steering: {steering:.3f} | Throttle: {throttle:.3f}")
-                print(f"[{step_i}] lane_center={lane_center:.3f}, vehicle_center={vehicle_center}, speed={speed_kph:.2f} kph")
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             frame_count += 1

@@ -1,15 +1,12 @@
 from beamng_sim.lidar.lidar import collect_lidar_data
 import numpy as np
-import open3d as o3d
-
 
 from .lane_boundry import detect_lane_boundaries
-from .lidar_lane_debug import LiveLidarDebugWindow
 
 bin_size = 1.0
 y_min, y_max = 0, 30
 
-def process_frame(lidar_sensor, camera_detections, beamng, speed, debug_window=None):
+def process_frame(lidar_sensor, beamng, speed, debug_window=None):
     try:
         lidar_data = lidar_sensor.poll()
         if lidar_data is None:

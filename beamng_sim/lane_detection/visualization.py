@@ -43,16 +43,16 @@ def draw_lane_overlay(original_image, warped_image, Minv, left_fitx, right_fitx,
             left_color = (0, 255, 255)
             right_color = (0, 255, 255)
 
-        cv2.polylines(color_warp, [pts_left.astype(np.int32)], isClosed=False, color=left_color, thickness=3)
+        cv2.polylines(color_warp, [pts_left.astype(np.int32)], isClosed=False, color=left_color, thickness=4)
 
-        cv2.polylines(color_warp, [pts_right.astype(np.int32)], isClosed=False, color=right_color, thickness=3)
+        cv2.polylines(color_warp, [pts_right.astype(np.int32)], isClosed=False, color=right_color, thickness=4)
 
         center_fitx = (left_fitx + right_fitx) / 2
         center_pts = np.array([np.transpose(np.vstack([center_fitx, ploty]))]).astype(np.int32)
         cv2.polylines(color_warp, center_pts, isClosed=False, color=(255, 0, 0), thickness=5)
 
         newwarp = cv2.warpPerspective(color_warp, Minv, (original_image.shape[1], original_image.shape[0])) 
-        result = cv2.addWeighted(original_image, 1, newwarp, 0.3, 0)
+        result = cv2.addWeighted(original_image, 1, newwarp, 0.25, 0)
         
         return result
     except Exception as e:

@@ -1,5 +1,48 @@
 import numpy as np
 import cv2
+import pickle
+import os
+
+
+def undistort_image(img, calibration_data):
+    """
+    Undistort an image using camera calibration parameters.
+    
+    Args:
+        img (numpy array): Distorted image
+        calibration_data (dict): Calibration data containing 'mtx' and 'dist'
+    
+    Returns:
+        numpy array: Undistorted image, or original image if calibration_data is None
+    """
+    if calibration_data is None:
+        return img
+    
+    mtx = calibration_data['mtx']
+    dist = calibration_data['dist']
+    return cv2.undistort(img, mtx, dist, None, mtx)
+
+
+def load_calibration(calibration_file):
+    """
+    Load camera calibration parameters from file.
+    
+    Args:
+        calibration_file (str): Path to pickled calibration file
+    
+    Returns:
+        dict: Calibration data containing mtx, dist, rvecs, tvecs, img_shape, rms_error
+    """
+    if not os.path.exists(calibration_file):
+        raise FileNotFoundError(f"Calibration file not found: {calibration_file}")
+    
+    with open(calibration_file, 'rb') as f:
+        calibration_data = pickle.load(f)
+    
+    print(f"Loaded calibration from: {calibration_file}")
+    print(f"RMS error: {calibration_data['rms_error']:.4f}")
+    
+    return calibration_data
 
 def get_src_points(image_shape, speed=0, previous_steering=0):
     """
@@ -15,42 +58,41 @@ def get_src_points(image_shape, speed=0, previous_steering=0):
 
     """
     h, w = image_shape[:2]
-    ref_w, ref_h = 1278, 720
-    scale_w = w / ref_w
-    scale_h = h / ref_h
 
-    left_bottom  = [80, 590]
-    right_bottom = [1115, 590]
-    top_right    = [790, 408]
-    top_left     = [500, 408]
+    left_bottom  = [6, 300]
+    right_bottom = [634, 300]
+    top_right    = [385, 201]
+    top_left     = [255, 201]
 
     speed_norm = min(speed / 120.0, 1.0)
-    top_shift = -40 * speed_norm
-    side_shift = 100 * speed_norm
-
-    max_steer_deg = 30.0
-    max_shift_px = 200.0
-    steer_norm = max(min(previous_steering / max_steer_deg, 1.0), -1.0)
-    steer_shift = steer_norm * max_shift_px
+    top_shift = -30 * speed_norm
+    side_shift = 50 * speed_norm
 
     src = np.float32([
-        [left_bottom[0] * scale_w + steer_shift, left_bottom[1] * scale_h],
-        [right_bottom[0] * scale_w + steer_shift, right_bottom[1] * scale_h],
-        [(top_right[0] - side_shift) * scale_w + steer_shift, (top_right[1] + top_shift) * scale_h],
-        [(top_left[0] + side_shift) * scale_w + steer_shift,  (top_left[1]  + top_shift) * scale_h]
+        [left_bottom[0] + side_shift, left_bottom[1]],           # Bottom-left
+        [right_bottom[0] - side_shift, right_bottom[1]],         # Bottom-right
+        [top_right[0] - side_shift, top_right[1] + top_shift],   # Top-right
+        [top_left[0] + side_shift, top_left[1] + top_shift]      # Top-left
     ])
+    
     return src
 
-def perspective_warp(img, speed=0, debug_display=False):
+def perspective_warp(img, speed=0, debug_display=False, calibration_data=None):
     """
-    Applies perspective transform to the passed image using the source points generated
+    Applies perspective transform to the passed image using the source points generated.
+    Optionally applies camera undistortion first if calibration data is provided.
 
     Args:
         img (numpy array): Input image to be warped
         speed (float): Speed of the vehicle in km/h
+        calibration_data (dict): Optional camera calibration data for undistortion
     Returns:
         tuple: (warped image, inverse perspective transform matrix)
     """
+    
+    # Apply camera undistortion if calibration data is available
+    if calibration_data is not None:
+        img = undistort_image(img, calibration_data)
         
     img_size = (img.shape[1], img.shape[0])
     w, h = img_size
@@ -58,10 +100,10 @@ def perspective_warp(img, speed=0, debug_display=False):
     src = get_src_points(img.shape, speed)
 
     dst = np.float32([
-        [w*0.2, h],
-        [w*0.8, h],
-        [w*0.8, 0],
-        [w*0.2, 0]
+        [w*0.2, h],        # Bottom-left in warped space
+        [w*0.8, h],        # Bottom-right in warped space
+        [w*0.8, 0],        # Top-right in warped space
+        [w*0.2, 0]         # Top-left in warped space
     ])
 
     M = cv2.getPerspectiveTransform(src, dst)

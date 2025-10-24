@@ -207,3 +207,73 @@ def compute_confidence_cv(left_fitx, right_fitx, ploty, current_fit=None, previo
     ) / sum(weights.values())
     
     return min(max(confidence, 0.0), 1.0)
+
+
+def compute_confidence_scnn(left_fitx, right_fitx, ploty, current_fit=None, previous_fit=None, 
+                            exist_pred=None, segmentation_quality=None):
+    """
+    Compute confidence for SCNN lane detection.
+    
+    SCNN-specific advantages:
+    - Existence predictions: Direct probability for each of 6 lanes
+    - Segmentation quality: Average confidence across detected lane pixels
+    
+    Args:
+        left_fitx, right_fitx, ploty: Standard lane line parameters
+        current_fit, previous_fit: For temporal consistency
+        exist_pred (np.array): SCNN existence predictions (6 values, 0-1)
+        segmentation_quality (float): Average segmentation confidence
+        
+    Returns:
+        float: Confidence score (0-1)
+    """
+    # Get shared confidence scores (geometry, temporal, etc.)
+    shared_score = compute_shared_confidence(left_fitx, right_fitx, ploty, 
+                                            current_fit=current_fit, 
+                                            previous_fit=previous_fit)
+    
+    # SCNN-specific: Existence prediction confidence
+    existence_score = 0.5  # Default if not provided
+    if exist_pred is not None:
+        # The middle lanes (indices 2, 3) are typically the ego lane
+        # We care most about detecting at least the lanes around us
+        try:
+            # Average of all lane existence predictions, weighted toward center lanes
+            lane_weights = np.array([0.1, 0.2, 0.3, 0.3, 0.2, 0.1])  # Center lanes weighted higher
+            existence_score = np.sum(exist_pred * lane_weights)
+            
+            # Bonus if we have at least 2 lanes with high confidence
+            high_conf_lanes = np.sum(exist_pred > 0.5)
+            if high_conf_lanes >= 2:
+                existence_score = min(1.0, existence_score * 1.1)
+                
+        except Exception as e:
+            print(f"Error computing SCNN existence score: {e}")
+            existence_score = 0.5
+    
+    # SCNN-specific: Segmentation quality (average confidence of predicted lane pixels)
+    seg_quality_score = 0.5  # Default if not provided
+    if segmentation_quality is not None:
+        seg_quality_score = min(1.0, max(0.0, segmentation_quality))
+    
+    # Adjusted weights for SCNN (existence and segmentation quality are very valuable)
+    scnn_weights = {
+        'num_lines': 0.15,
+        'length': 0.15,
+        'geometry': 0.25,
+        'temporal': 0.15,
+        'existence': 0.20,      # SCNN-specific: direct lane existence probability
+        'seg_quality': 0.10     # SCNN-specific: segmentation confidence
+    }
+    
+    # Combine scores
+    confidence = (
+        scnn_weights['num_lines'] * shared_score['num_lines_score'] +
+        scnn_weights['length'] * shared_score['length_continuity_score'] +
+        scnn_weights['geometry'] * shared_score['geometry_score'] +
+        scnn_weights['temporal'] * shared_score['temporal_score'] +
+        scnn_weights['existence'] * existence_score +
+        scnn_weights['seg_quality'] * seg_quality_score
+    ) / sum(scnn_weights.values())
+    
+    return min(max(confidence, 0.0), 1.0)

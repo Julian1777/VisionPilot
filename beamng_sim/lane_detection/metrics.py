@@ -69,9 +69,9 @@ def validate_lane_geometry(left_fitx, right_fitx, ploty):
     right_bottom = rightx[-1]
     lane_width_pix = right_bottom - left_bottom
 
-    # Check for crossed lanes
-    if left_bottom >= right_bottom:
-        print(f"Lane lines crossed: left={left_bottom:.1f}, right={right_bottom:.1f}")
+    # Check for crossed lanes (removed - allow lanes to converge)
+    if left_bottom > right_bottom:
+        print(f"Lane lines reversed: left={left_bottom:.1f}, right={right_bottom:.1f}")
         return False, None
 
     return True, lane_width_pix
@@ -121,14 +121,14 @@ def check_lane_width_outliers(lane_width_pix):
             check_lane_width_outliers.outlier_count = 0
             check_lane_width_outliers.consecutive_outliers = 0
     else:
-        if lane_width_pix < 50 or lane_width_pix > 700:
-            print(f"Unreasonable lane width: {lane_width_pix:.1f} pixels")
+        if lane_width_pix > 700:
+            print(f"Unreasonably wide lane width: {lane_width_pix:.1f} pixels")
             return False
 
     return True
 
 
-def calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warped):
+def calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warped, original_image_width=None):
     """
     Calculate lane curvature and vehicle deviation from lane center.
     
@@ -137,6 +137,7 @@ def calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warpe
         left_fitx: X coordinates for left lane line
         right_fitx: X coordinates for right lane line
         binary_warped: Warped binary image for reference
+        original_image_width: Width of original (unwarped) image. If None, uses binary_warped width.
     Returns:
         tuple: (left_curverad, right_curverad, deviation_m, lane_center, vehicle_center)
                Returns (None, None, None, None, None) if validation fails
@@ -184,8 +185,22 @@ def calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warpe
 
         # Calculate lane center and vehicle deviation
         lane_center = (left_bottom + right_bottom) / 2.0
-        vehicle_center = binary_warped.shape[1] / 2.0
-        deviation_m = (vehicle_center - lane_center) * xm_per_pix
+        
+        if original_image_width is not None:
+            vehicle_center = original_image_width / 2.0
+        else:
+            vehicle_center = binary_warped.shape[1] / 2.0
+        
+        deviation_pixels = vehicle_center - lane_center
+        deviation_m = deviation_pixels * xm_per_pix
+        
+        print(f"Deviation Calculation Debug:")
+        print(f"  Binary warped shape: {binary_warped.shape}")
+        print(f"  Original image width: {original_image_width if original_image_width else 'NOT PROVIDED (using warped width)'}")
+        print(f"  Left bottom: {left_bottom:.1f}, Right bottom: {right_bottom:.1f}")
+        print(f"  Lane center: {lane_center:.1f}, Vehicle center: {vehicle_center:.1f}")
+        print(f"  Deviation (pixels): {deviation_pixels:.1f}")
+        print(f"  xm_per_pix: {xm_per_pix:.4f}, Deviation (m): {deviation_m:.4f}")
 
         # Limit unreasonable deviation values
         max_reasonable_deviation = 0.7
@@ -200,7 +215,7 @@ def calculate_curvature_and_deviation(ploty, left_fitx, right_fitx, binary_warpe
         return None, None, None, None, None, None
 
 
-def process_deviation(raw_deviation, alpha=0.65, dead_zone=0.1, max_dev=2.0):
+def process_deviation(raw_deviation, alpha=0.55, dead_zone=0.1, max_dev=2.0):
     """
     Process raw deviation for use in control systems.
     Applies smoothing, deadzone, and scaling.
@@ -214,6 +229,9 @@ def process_deviation(raw_deviation, alpha=0.65, dead_zone=0.1, max_dev=2.0):
     Returns:
         tuple: (smoothed_deviation, effective_deviation)
     """
+    if raw_deviation is None:
+        raw_deviation = 0.0
+        
     smoothed_deviation = smooth_deviation(raw_deviation, alpha)
     effective_deviation = apply_deviation_deadzone_and_scaling(smoothed_deviation, dead_zone, max_dev)
     

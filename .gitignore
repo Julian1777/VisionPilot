@@ -24,3 +24,4 @@ __pycache__/
 *.jar
 
 lane-detection-cnn/unet/lane_detection_unet.py
+beamng_sim/lane_detection/engn/

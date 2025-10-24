@@ -67,31 +67,6 @@ Below are sample demos of the system's capabilities. More demos (including new m
 - **Mapillary** for sign detection
 - **BDD** for vehicle and pedestrian detection
 
-
-## 📚 Datasets & Sources
-
-> **Note:** The datasets folder is not included in the repository. You must download and prepare all datasets yourself. The following structure and subfolders are required for the code to work—please organize your downloaded and processed datasets to match this layout:
-
-- **Lane Detection:**
-  - Place CU Lane Dataset in `datasets/lane-detection/`
-  - Processed Culane with sorted masks, images, and annotations in `lane-detection/processed/` and raw data in `lane-detection/raw/`
-- **Traffic Sign Classification:**
-  - Place GTSRB Dataset in the appropriate subfolder
-- **Traffic Sign Detection:**
-  - Place unprocessed Mapillary Sign Dataset in `datasets/traffic-sign/raw`
-  - Processed dataset for yolov8 format in `datasets/traffic-sign/processed-yolo/`
-- **Traffic Light Detection & Classification:**
-  - Place unprocessed DLDT & LISA Datasets in `datasets/traffic-light/raw`
-  - Combined DLDT & LISA datasets sorted by light state in `datasets/traffic-light/processed/merged_dataset`
-  - Combined dataset processed for YOLO training in `datasets/traffic-light/processed/yolo_dataset`
-- **Vehicle & Pedestrian Detection:**
-  - Place BDD100K in `datasets/vehicle-pedestrian/` (download from Kaggle profile)
-- **Debug Visualizations:**
-  - Place traffic light debug visualizations in `datasets/traffic-light/debug_visualizations/`
-  - Place results visualizations in `results/traffic-sign-classification/visualizations/` and `results/vehicle-pedestrian/visualizations/`
-
-
-
 ## 📊 Results
 
 For qualitative and quantitative results, see the demo section above and the `results/` folder for visualizations, metrics, and sample outputs. Example outputs include:
@@ -109,7 +84,7 @@ For qualitative and quantitative results, see the demo section above and the `re
   ```
 2. **Run a demo (BeamNG.tech):**
   ```bash
-  python beamng_sim/beamng.py
+  python -m beamng_sim.beamng
   ```
   - Make sure you have BeamNG.tech installed and properly licensed. See [BeamNG.tech documentation](https://www.beamng.tech/) for setup instructions.
 
@@ -130,8 +105,7 @@ For qualitative and quantitative results, see the demo section above and the `re
 ## 🧠 Model Details
 All models are located in the models folder
 - **Lane Detection:** SCNN
-- **Traffic Sign Classification:** CNN classifier
-- **Traffic Sign Detector:** YOLOv8 detector
+- **Traffic Sign Detect/Class:** CNN classifier, YOLOv8 detector
 - **Traffic Light Detect/Class:** YOLOv8 detector, CNN classifier
 - **Vehicle/Pedestrian:** YOLOv8
 
@@ -201,7 +175,7 @@ self-driving-car-simulation/
 
 - [x] Sign classification & Detection (CNN)
 - [x] Traffic light classification & Detection
-- [x] Lane detection (CNN, CV)
+- [x] Lane detection (SCNN, CV)
 - [x] ⭐ Advanced lane detection using OpenCV (robust city/highway, lighting, outlier handling)
 - [x] Integrate and test in BeamNG.tech simulation (replacing CARLA)
 - [x] Tweak lane detection parameters and thresholds

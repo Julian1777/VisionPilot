@@ -11,6 +11,8 @@ def detect_lane_boundaries(filtered_points, bin_size=1.0, y_min=0, y_max=30, x_t
         unique_xs = np.unique(xs)
         ground_points = []
         for x in unique_xs:
+            # Convert numpy scalar to Python float to avoid numpy array comparison issues
+            x = float(x)
             zs_at_x = [z for (x2, y2, z) in bin_points if abs(x2 - x) < x_tolerance]
             if zs_at_x:
                 zs_at_x.sort()
@@ -23,7 +25,7 @@ def detect_lane_boundaries(filtered_points, bin_size=1.0, y_min=0, y_max=30, x_t
         left_boundary = None
         right_boundary = None
         for x, z in ground_points:
-            if z > mean_road_height + threshold:
+            if float(z) > float(mean_road_height) + threshold:
                 if left_boundary is None:
                     left_boundary = x
                 else:
