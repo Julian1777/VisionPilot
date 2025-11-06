@@ -8,6 +8,7 @@ from beamngpy import BeamNGpy, Scenario, Vehicle
 from beamngpy.sensors import Camera, Lidar, Radar
 
 from beamng_sim.sign.detect_classify import random_brightness
+
 from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL, UNET_LANE_DETECTION_MODEL, SCNN_LANE_DETECTION_MODEL, CAMERA_CALIBRATION
 
 from ultralytics import YOLO
@@ -21,7 +22,6 @@ import csv
 import datetime
 
 from beamng_sim.lane_detection.main import process_frame_cv as lane_detection_cv_process_frame
-from beamng_sim.lane_detection.main import process_frame_unet as lane_detection_unet_process_frame
 from beamng_sim.lane_detection.main import process_frame_scnn as lane_detection_scnn_process_frame
 from beamng_sim.sign.main import process_frame as sign_process_frame
 from beamng_sim.vehicle_obstacle.main import process_frame as vehicle_obstacle_process_frame
@@ -30,6 +30,8 @@ from beamng_sim.radar.main import process_frame as radar_process_frame
 
 from beamng_sim.lane_detection.fusion import fuse_lane_metrics
 from beamng_sim.lane_detection.perspective import load_calibration
+
+from beamng_sim.foxglove_integration.bridge_instance import bridge
 
 MODELS = {}
 
@@ -264,11 +266,8 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
 
     fused_metrics = fuse_lane_metrics(cv_metrics, cv_conf, scnn_metrics, scnn_conf, method_name="SCNN")
 
-    fused_result = cv_result if cv_conf > scnn_conf else scnn_result
-
     cv2.imshow('Lane Detection CV', cv_result)
     cv2.imshow('Lane Detection SCNN', scnn_result)
-    #cv2.imshow('Lane Detection Fused', fused_result)
 
 
     deviation = fused_metrics.get('deviation', 0.0)
@@ -288,7 +287,7 @@ def lane_detection_fused(img, speed_kph, pid, previous_steering, base_throttle, 
 
     result = cv_result if cv_conf > scnn_conf else scnn_result
 
-    return result, steering, throttle, smoothed_deviation, lane_center, vehicle_center
+    return result, steering, throttle, smoothed_deviation, lane_center, vehicle_center, fused_metrics
 
 def sign_detection_classification(img):
     """
@@ -332,6 +331,7 @@ def main():
     """
     Main function to run the simulation.
     """
+
     try:
         load_models()
     except Exception as e:
@@ -412,11 +412,12 @@ def main():
                 break
 
             # Lane Detection
-            result, steering, throttle, deviation, lane_center, vehicle_center = lane_detection_fused(
+            result, steering, throttle, deviation, lane_center, vehicle_center, fused_metrics = lane_detection_fused(
                 img, speed_kph, steering_pid, previous_steering, base_throttle, max_steering_change, step_i=step_i
             )
 
             # Log to CSV
+            fused_confidence = fused_metrics.get('confidence', 0.0)
             log_writer.writerow({
                 "frame": step_i,
                 "deviation_m": round(deviation, 3) if deviation is not None else 0.0,
@@ -433,6 +434,7 @@ def main():
                 sign_detections, sign_img = sign_detection_classification(img)
                 cv2.imshow('Sign Detection', sign_img)
 
+
                 # Vehicle & Obstacle Detection
                 vehicle_detections, vehicle_img = vehicle_obstacle_detection(img)
                 cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
@@ -441,9 +443,12 @@ def main():
 
             # Lidar Road Boundaries
             try:
-                lidar_lane_boundaries = lidar_process_frame(lidar, beamng=beamng, speed=speed_kph, debug_window=None, vehicle=vehicle, car_position=car_pos, car_direction=direction)
+                lidar_lane_boundaries, filtered_points = lidar_process_frame(lidar, beamng=beamng, speed=speed_kph, debug_window=None, vehicle=vehicle, car_position=car_pos, car_direction=direction)
             except Exception as lidar_e:
                 print(f"Lidar process error: {lidar_e}")
+                lidar_lane_boundaries = None
+                filtered_points = None
+
 
             # Lidar Object Detection
             # lidar_detections, lidar_obj_img = lidar_object_detections(lidar, camera_detections=vehicle_detections)
@@ -457,6 +462,67 @@ def main():
                 break
             frame_count += 1
             step_i += 1
+
+            try:
+                bridge.send_lane_detection(
+                    lane_center=lane_center,
+                    vehicle_center=vehicle_center,
+                    deviation=deviation,
+                    confidence=fused_confidence,
+                    left_lane_points=lidar_lane_boundaries.get('left_lane_points') if lidar_lane_boundaries else None,
+                    right_lane_points=lidar_lane_boundaries.get('right_lane_points') if lidar_lane_boundaries else None
+                )
+                print("Lane detection sent to Foxglove")
+            except Exception as lane_det_send_e:
+                print(f"Error sending lane detection to Foxglove: {lane_det_send_e}")
+
+            try:
+                bridge.send_vehicle_state(
+                    speed_kph=speed_kph,
+                    steering=steering,
+                    throttle=throttle,
+                    x=car_pos[0],
+                    y=car_pos[1],
+                    z=car_pos[2]
+                )
+                print("Vehicle state sent to Foxglove")
+            except Exception as vehicle_state_send_e:
+                print(f"Error sending vehicle state to Foxglove: {vehicle_state_send_e}")
+
+            try:
+                if filtered_points is not None and len(filtered_points) > 0:
+                    bridge.send_lidar(filtered_points)
+                    print("LiDAR data sent to Foxglove")
+            except Exception as lidar_send_e:
+                print(f"Error sending LiDAR to Foxglove: {lidar_send_e}")
+
+            if step_i % 80 == 0 and vehicle_detections:
+                for detection in vehicle_detections:
+                    bbox = detection['bbox']
+                    x_center = (bbox[0] + bbox[2]) / 2
+                    y_center = (bbox[1] + bbox[3]) / 2
+                    width = bbox[2] - bbox[0]
+                    height = bbox[3] - bbox[1]
+                    
+                    bridge.send_vehicle_detection(
+                        detection_type=detection['class'],
+                        x=x_center,
+                        y=y_center,
+                        width=width,
+                        height=height,
+                        confidence=detection['confidence']
+                    )
+                for sign_det in sign_detections:
+                    bbox = sign_det['bbox']
+                    x_center = (bbox[0] + bbox[2]) / 2
+                    y_center = (bbox[1] + bbox[3]) / 2
+                    
+                    bridge.send_sign_detection(
+                        sign_type=sign_det.get('classification', 'Unknown'),
+                        x=x_center,
+                        y=y_center,
+                        confidence=sign_det.get('classification_confidence', 0.0)
+                    )
 
     except KeyboardInterrupt:
         print("Interrupted by user")
