@@ -172,27 +172,26 @@ def sim_setup():
         print(f"LiDAR initialization error: {e}")
         lidar = None
     
-    # try:
-    #     print("Attempting Radar initialization...")
-    #     radar = Radar(
-    #         "radar1",
-    #         beamng,
-    #         vehicle,
-    #         requested_update_time=0.01,
-    #         pos=(0, -2.5, 0.5),
-    #         dir=(0, -1, 0),
-    #         range_min=2,
-    #         range_max=120,
-    #         vel_min=-40,
-    #         vel_max=40,
-    #         field_of_view_y=70,
-    #     )
-    #     print("Radar initialized")
-    # except Exception as e:
-    #     print(f"❌ Radar initialization error: {e}")
-    #     radar = None
+    try:
+        print("Attempting Radar initialization...")
+        radar = Radar(
+            "radar1",
+            beamng,
+            vehicle,
+            requested_update_time=0.01,
+            pos=(0, -2.5, 0.5),
+            dir=(0, -1, 0),
+            up=(0, 0, 1),
+            size=(200, 200),
+            near_far_planes=(2, 120),
+            field_of_view_y=70,
+        )
+        print("Radar initialized")
+    except Exception as e:
+        print(f"  Radar initialization error: {e}")
+        radar = None
 
-    return beamng, scenario, vehicle, camera, lidar, #radar
+    return beamng, scenario, vehicle, camera, lidar, radar
 
 def get_vehicle_speed(vehicle):
     """
@@ -339,7 +338,7 @@ def main():
         print(f"Model loading error: {e}")
         return
 
-    beamng, scenario, vehicle, camera, lidar = sim_setup()
+    beamng, scenario, vehicle, camera, lidar, radar = sim_setup()
     print("Simulation setup complete")
 
     print("Wait for sensors to initialize")
@@ -359,12 +358,12 @@ def main():
     except Exception as e:
         print(f"LiDAR error: {e}")
 
-    # try:
-    #     print("Testing radar...")
-    #     radar_test = radar.poll()
-    #     print(f"Radar working: {type(radar_test)}")
-    # except Exception as e:
-    #     print(f"Radar error: {e}")
+    try:
+        print("Testing radar...")
+        radar_test = radar.poll()
+        print(f"Radar working: {type(radar_test)}")
+    except Exception as e:
+        print(f"Radar error: {e}")
 
     steering_pid = PIDController(Kp=0.017, Ki=0.0, Kd=0.004, derivative_filter_alpha=0.2)
     max_steering_change = 0.22
