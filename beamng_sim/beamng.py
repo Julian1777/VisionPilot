@@ -332,6 +332,10 @@ def main():
     Main function to run the simulation.
     """
 
+    print("Initializing Foxglove channels")
+    bridge.initialize_channels()
+    print("Foxglove channels ready")
+
     try:
         load_models()
     except Exception as e:
@@ -413,7 +417,7 @@ def main():
 
             # Lane Detection
             try:
-                result, steering, throttle, deviation, lane_center, vehicle_center = lane_detection_fused(
+                result, steering, throttle, deviation, lane_center, vehicle_center, fused_metrics = lane_detection_fused(
                     img, speed_kph, steering_pid, previous_steering, base_throttle, max_steering_change, step_i=step_i
                 )
             except Exception as lane_e:
@@ -475,65 +479,81 @@ def main():
             step_i += 1
 
             try:
-                bridge.send_lane_detection(
-                    lane_center=lane_center,
-                    vehicle_center=vehicle_center,
-                    deviation=deviation,
-                    confidence=fused_confidence,
-                    left_lane_points=lidar_lane_boundaries.get('left_lane_points') if lidar_lane_boundaries else None,
-                    right_lane_points=lidar_lane_boundaries.get('right_lane_points') if lidar_lane_boundaries else None
-                )
-                print("Lane detection sent to Foxglove")
+                lane_message = {
+                    "lane_center": float(lane_center) if lane_center is not None else 0.0,
+                    "vehicle_center": float(vehicle_center) if vehicle_center is not None else 0.0,
+                    "deviation": float(deviation) if deviation is not None else 0.0,
+                    "confidence": float(fused_confidence)
+                }
+                if lidar_lane_boundaries and 'left_lane_points' in lidar_lane_boundaries:
+                    lane_message["left_lane_points"] = [
+                        {"x": float(p[0]), "y": float(p[1]), "z": float(p[2]) if len(p) > 2 else 0.0}
+                        for p in lidar_lane_boundaries['left_lane_points']
+                    ]
+                if lidar_lane_boundaries and 'right_lane_points' in lidar_lane_boundaries:
+                    lane_message["right_lane_points"] = [
+                        {"x": float(p[0]), "y": float(p[1]), "z": float(p[2]) if len(p) > 2 else 0.0}
+                        for p in lidar_lane_boundaries['right_lane_points']
+                    ]
+                bridge.lane_channel.log(lane_message)
+                print(f"Lane detection sent to Foxglove: deviation={deviation:.2f}")
             except Exception as lane_det_send_e:
                 print(f"Error sending lane detection to Foxglove: {lane_det_send_e}")
 
             try:
-                bridge.send_vehicle_state(
-                    speed_kph=speed_kph,
-                    steering=steering,
-                    throttle=throttle,
-                    x=car_pos[0],
-                    y=car_pos[1],
-                    z=car_pos[2]
-                )
-                print("Vehicle state sent to Foxglove")
+                vehicle_state_message = {
+                    "speed_kph": float(speed_kph),
+                    "steering": float(steering),
+                    "throttle": float(throttle),
+                    "x": float(car_pos[0]),
+                    "y": float(car_pos[1]),
+                    "z": float(car_pos[2])
+                }
+                bridge.vehicle_state_channel.log(vehicle_state_message)
+                print(f"Vehicle state sent: speed={speed_kph:.1f} kph, steering={steering:.2f}")
             except Exception as vehicle_state_send_e:
                 print(f"Error sending vehicle state to Foxglove: {vehicle_state_send_e}")
 
             try:
                 if filtered_points is not None and len(filtered_points) > 0:
                     bridge.send_lidar(filtered_points)
-                    print("LiDAR data sent to Foxglove")
             except Exception as lidar_send_e:
                 print(f"Error sending LiDAR to Foxglove: {lidar_send_e}")
 
-            if step_i % 80 == 0 and vehicle_detections:
-                for detection in vehicle_detections:
-                    bbox = detection['bbox']
-                    x_center = (bbox[0] + bbox[2]) / 2
-                    y_center = (bbox[1] + bbox[3]) / 2
-                    width = bbox[2] - bbox[0]
-                    height = bbox[3] - bbox[1]
-                    
-                    bridge.send_vehicle_detection(
-                        detection_type=detection['class'],
-                        x=x_center,
-                        y=y_center,
-                        width=width,
-                        height=height,
-                        confidence=detection['confidence']
-                    )
-                for sign_det in sign_detections:
-                    bbox = sign_det['bbox']
-                    x_center = (bbox[0] + bbox[2]) / 2
-                    y_center = (bbox[1] + bbox[3]) / 2
-                    
-                    bridge.send_sign_detection(
-                        sign_type=sign_det.get('classification', 'Unknown'),
-                        x=x_center,
-                        y=y_center,
-                        confidence=sign_det.get('classification_confidence', 0.0)
-                    )
+            if step_i % 80 == 0:
+                # Send vehicle detections
+                if vehicle_detections:
+                    for detection in vehicle_detections:
+                        try:
+                            bbox = detection['bbox']
+                            vehicle_det_message = {
+                                "type": detection['class'],
+                                "x": float((bbox[0] + bbox[2]) / 2),
+                                "y": float((bbox[1] + bbox[3]) / 2),
+                                "width": float(bbox[2] - bbox[0]),
+                                "height": float(bbox[3] - bbox[1]),
+                                "confidence": float(detection['confidence'])
+                            }
+                            bridge.vehicle_channel.log(vehicle_det_message)
+                            print(f"Vehicle detection sent: {detection['class']}")
+                        except Exception as e:
+                            print(f"Error sending vehicle detection: {e}")
+                
+                # Send sign detections
+                if sign_detections:
+                    for sign_det in sign_detections:
+                        try:
+                            bbox = sign_det['bbox']
+                            sign_message = {
+                                "type": sign_det.get('classification', 'Unknown'),
+                                "x": float((bbox[0] + bbox[2]) / 2),
+                                "y": float((bbox[1] + bbox[3]) / 2),
+                                "confidence": float(sign_det.get('classification_confidence', 0.0))
+                            }
+                            bridge.sign_channel.log(sign_message)
+                            print(f"Sign detection sent: {sign_det.get('classification', 'Unknown')}")
+                        except Exception as e:
+                            print(f"Error sending sign detection: {e}")
 
     except KeyboardInterrupt:
         print("Interrupted by user")
