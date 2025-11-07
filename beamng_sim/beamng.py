@@ -160,11 +160,12 @@ def sim_setup():
             requested_update_time=0.01,
             is_using_shared_memory=True,
             is_rotate_mode=False,
-            horizontal_angle=170,  # Horizontal field of view
-            vertical_angle=30,  # Vertical field of view
+            is_360_mode=True,
+            # horizontal_angle=170,  # Horizontal field of view
+            vertical_angle=45,  # Vertical field of view
             vertical_resolution=64,  # Number of lasers/channels
-            density=7,
-            frequency=15,
+            density=3,
+            frequency=30,
             max_distance=100,
             pos=(0, -0.35, 1.425),
             is_visualised=False,
@@ -371,7 +372,7 @@ def main():
     except Exception as e:
         print(f"Radar error: {e}")
 
-    steering_pid = PIDController(Kp=0.017, Ki=0.0, Kd=0.004, derivative_filter_alpha=0.2)
+    steering_pid = PIDController(Kp=0.020, Ki=0.0, Kd=0.003, derivative_filter_alpha=0.2)
     max_steering_change = 0.22
     previous_steering = 0.0
 
@@ -443,18 +444,18 @@ def main():
                 try:
                     # Sign Detection
                     sign_detections, sign_img = sign_detection_classification(img)
-                    cv2.imshow('Sign Detection', sign_img)
+                    #cv2.imshow('Sign Detection', sign_img)
                 except Exception as sign_e:
                     print(f"Sign detection error: {sign_e}")
-                    continue
+                    sign_detections = []
                 
                 try:
                     # Vehicle & Obstacle Detection
                     vehicle_detections, vehicle_img = vehicle_obstacle_detection(img)
-                    cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
+                    #cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
                 except Exception as vehicle_e:
                     print(f"Vehicle detection error: {vehicle_e}")
-                    continue
+                    vehicle_detections = []
 
             # radar_detections = radar_process_frame(radar_sensor=radar, camera_detections=vehicle_detections, speed=speed_kph)
 
@@ -515,6 +516,18 @@ def main():
                 print(f"Vehicle state sent: speed={speed_kph:.1f} kph, steering={steering:.2f}")
             except Exception as vehicle_state_send_e:
                 print(f"Error sending vehicle state to Foxglove: {vehicle_state_send_e}")
+
+            try:
+                # Send vehicle transform (world → base_link)
+                car_yaw = np.arctan2(direction[1], direction[0])
+                bridge.publish_vehicle_transform(
+                    x=car_pos[0],
+                    y=car_pos[1],
+                    z=car_pos[2],
+                    yaw=car_yaw
+                )
+            except Exception as transform_send_e:
+                print(f"Error sending vehicle transform to Foxglove: {transform_send_e}")
 
             try:
                 # Send 3D vehicle model

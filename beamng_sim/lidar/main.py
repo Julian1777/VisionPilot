@@ -35,8 +35,9 @@ def process_frame(lidar_sensor, beamng, speed, debug_window=None, vehicle=None, 
             print(f"  Point cloud range: Z=[{point_cloud[:, 2].min():.1f}, {point_cloud[:, 2].max():.1f}]")
             return {}, []
 
-        boundaries = detect_lane_boundaries(filtered_points)
-        return boundaries, filtered_points
+        # TEMPORARY: Bypass boundary detection and just return raw points for faster streaming
+        print(f"Returning {len(filtered_points)} raw LiDAR points (boundary detection bypassed)")
+        return {}, filtered_points
     except Exception as e:
         print(f"LiDAR processing error: {e}")
         return {}, []

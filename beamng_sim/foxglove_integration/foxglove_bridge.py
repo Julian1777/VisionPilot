@@ -13,10 +13,14 @@ from foxglove.schemas import (
     PointCloud,
     PackedElementField,
     PackedElementFieldNumericType,
+    Quaternion,
+    FrameTransform,
 )
+
 import numpy as np
 import os
 import time
+
 
 
 class FoxgloveBridge:
@@ -32,6 +36,8 @@ class FoxgloveBridge:
         # PointCloud channel (native Foxglove schema)
         self.lidar_channel = None
         self.scene_channel = None
+        # Transform channel for base_link → world mapping
+        self.transforms_channel = None
     
     def start_server(self):
         """Start the Foxglove WebSocket server"""
@@ -63,6 +69,9 @@ class FoxgloveBridge:
         
         # Scene channel for 3D models
         self.scene_channel = SceneUpdateChannel("/scene")
+        
+        # Transforms channel for frame mapping
+        self.transforms_channel = Channel("/tf", message_encoding="json")
         
         self._initialized = True
         print("[FoxgloveBridge] Channels initialized successfully")
@@ -158,9 +167,55 @@ class FoxgloveBridge:
         except Exception as e:
             print(f"[FoxgloveBridge] Error sending vehicle state: {e}")
     
+    def publish_vehicle_transform(self, x, y, z, yaw=0.0):
+        """
+        Publish transform from world → base_link to establish frame hierarchy in Foxglove.
+        This allows base_link-relative data (like LiDAR) to follow the vehicle.
+        
+        Args:
+            x, y, z: Vehicle position in world coordinates
+            yaw: Vehicle yaw angle in radians
+        """
+        if not self._initialized:
+            print("[FoxgloveBridge] Warning: Bridge not initialized, skipping transform")
+            return
+        
+        try:
+            # Convert yaw to quaternion
+            half_yaw = yaw / 2.0
+            qx = 0.0
+            qy = 0.0
+            qz = np.sin(half_yaw)
+            qw = np.cos(half_yaw)
+            
+            # Create FrameTransform message
+            tf_msg = {
+                "timestamp": int(time.time() * 1e9),
+                "parent_frame_id": "world",
+                "child_frame_id": "base_link",
+                "translation": {
+                    "x": float(x),
+                    "y": float(y),
+                    "z": float(z)
+                },
+                "rotation": {
+                    "x": float(qx),
+                    "y": float(qy),
+                    "z": float(qz),
+                    "w": float(qw)
+                }
+            }
+            
+            self.transforms_channel.log(tf_msg)
+            print(f"[FoxgloveBridge] Published transform: world → base_link at ({x:.1f}, {y:.1f}, {z:.1f})")
+            
+        except Exception as e:
+            print(f"[FoxgloveBridge] Error publishing transform: {e}")
+    
     def send_lidar(self, points):
         """
         Send LiDAR point cloud data using native Foxglove PointCloud schema.
+        Uses world frame to match vehicle position.
         Args:
             points: numpy array or list of points with shape (N, 3) containing x, y, z coordinates
         """
@@ -195,10 +250,10 @@ class FoxgloveBridge:
             stamp = int(time.time() * 1e9)
             timestamp = Timestamp(sec=int(stamp // 1e9), nsec=int(stamp % 1e9))
             
-            # Create PointCloud message
+            # Create PointCloud message using world frame instead of base_link
             pc = PointCloud(
                 timestamp=timestamp,
-                frame_id="base_link",
+                frame_id="world",  # Changed from base_link to world
                 point_stride=12,  # 3 fields * 4 bytes each
                 fields=fields,
                 data=data_bytes,
@@ -206,7 +261,7 @@ class FoxgloveBridge:
             
             # Send to Foxglove
             self.lidar_channel.log(pc, log_time=stamp)
-            print(f"[FoxgloveBridge] Sent {len(points_array)} LiDAR points to /lidar/pointcloud")
+            print(f"[FoxgloveBridge] Sent {len(points_array)} LiDAR points to /lidar/pointcloud (world frame)")
             
         except Exception as e:
             print(f"[FoxgloveBridge] Error sending LiDAR: {e}")
@@ -214,10 +269,7 @@ class FoxgloveBridge:
     def send_vehicle_3d(self, x, y, z, yaw=0.0):
         """
         Send vehicle position and orientation with BMW X5 GLB models.
-        
-        Args:
-            x, y, z: Vehicle position in world coordinates
-            yaw: Vehicle yaw angle in radians (rotation around Z axis)
+        Uses Quaternion helper for orientation.
         """
         try:
             # Convert yaw to quaternion (rotation around Z axis)
@@ -226,29 +278,32 @@ class FoxgloveBridge:
             qy = 0.0
             qz = np.sin(half_yaw)
             qw = np.cos(half_yaw)
-            
+
             entities = []
-            
+
             # Base directory for GLB files
             model_dir = os.path.join(
                 os.path.dirname(__file__),
                 "model", "bmw_x5", "meshes"
             )
-            
+
             # Car body
             body_glb_path = os.path.join(model_dir, "car_body.glb")
             if os.path.exists(body_glb_path):
                 body_entity = SceneEntity(
                     id="bmw_body",
                     frame_id="world",
-                    pose=Pose(
-                        position=Vector3(x=float(x), y=float(y), z=float(z)),
-                        orientation={"x": float(qx), "y": float(qy), "z": float(qz), "w": float(qw)},
+                    model=ModelPrimitive(
+                        url=f"file://{body_glb_path}",
+                        pose=Pose(
+                            position=Vector3(x=float(x), y=float(y), z=float(z)),
+                            orientation=Quaternion(x=float(qx), y=float(qy), z=float(qz), w=float(qw)),
+                        ),
+                        scale=Vector3(x=1.0, y=1.0, z=1.0),
                     ),
-                    model=ModelPrimitive(url=f"file://{body_glb_path}"),
                 )
                 entities.append(body_entity)
-            
+
             # Wheel positions from URDF (relative to body)
             wheels = [
                 ("front_left_wheel", 1.3, 0.8, -0.3, "wheel_front_left.glb"),
@@ -256,26 +311,28 @@ class FoxgloveBridge:
                 ("rear_left_wheel", -1.3, 0.8, -0.3, "wheel_rear_left.glb"),
                 ("rear_right_wheel", -1.3, -0.8, -0.3, "wheel_rear_right.glb"),
             ]
-            
+
             for wheel_id, rel_x, rel_y, rel_z, mesh_file in wheels:
                 glb_path = os.path.join(model_dir, mesh_file)
                 if os.path.exists(glb_path):
-                    # Wheel position relative to car body (no need to transform)
                     wheel_entity = SceneEntity(
                         id=wheel_id,
-                        frame_id="bmw_body",  # Position relative to body frame
-                        pose=Pose(
-                            position=Vector3(x=float(rel_x), y=float(rel_y), z=float(rel_z)),
-                            orientation={"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0},
+                        frame_id="world",
+                        model=ModelPrimitive(
+                            url=f"file://{glb_path}",
+                            pose=Pose(
+                                position=Vector3(x=float(x + rel_x), y=float(y + rel_y), z=float(z + rel_z)),
+                                orientation=Quaternion(x=float(qx), y=float(qy), z=float(qz), w=float(qw)),
+                            ),
+                            scale=Vector3(x=1.0, y=1.0, z=1.0),
                         ),
-                        model=ModelPrimitive(url=f"file://{glb_path}"),
                     )
                     entities.append(wheel_entity)
-            
+
             if entities:
                 scene_update = SceneUpdate(entities=entities)
                 print(f"[FoxgloveBridge] Sending BMW X5 3D model at ({x:.1f}, {y:.1f}, {z:.1f}), yaw={np.degrees(yaw):.1f}°")
-                self.scene_channel.log(scene_update)
+                self.scene_channel.publish(scene_update)
             else:
                 print(f"[FoxgloveBridge] Warning: No GLB files found in {model_dir}")
         except Exception as e:
