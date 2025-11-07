@@ -332,6 +332,8 @@ def main():
     Main function to run the simulation.
     """
 
+    print("Starting Foxglove WebSocket server...")
+    bridge.start_server()
     print("Initializing Foxglove channels...")
     bridge.initialize_channels()
     print("Foxglove ready - connect to ws://localhost:8765")
