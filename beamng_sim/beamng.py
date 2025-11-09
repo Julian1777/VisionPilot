@@ -1,5 +1,7 @@
 import sys
 import os
+import yaml
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from beamng_sim.utils.pid_controller import PIDController
@@ -21,6 +23,8 @@ import math
 import cv2
 import csv
 import datetime
+from scipy.spatial.transform import Rotation as R
+
 
 from beamng_sim.lane_detection.main import process_frame_cv as lane_detection_cv_process_frame
 from beamng_sim.lane_detection.main import process_frame_scnn as lane_detection_scnn_process_frame
@@ -122,98 +126,128 @@ def load_models():
     print("All models loaded successfully!")
 
 
-def sim_setup():
+def load_config():
+    """Load all configuration files."""
+    config_path = os.path.join(os.path.dirname(__file__), 'config')
+    
+    with open(os.path.join(config_path, 'beamng_sim.yaml'), 'r') as f:
+        beamng_config = yaml.safe_load(f)
+    with open(os.path.join(config_path, 'scenarios.yaml'), 'r') as f:
+        scenarios_config = yaml.safe_load(f)
+    with open(os.path.join(config_path, 'sensors.yaml'), 'r') as f:
+        sensors_config = yaml.safe_load(f)
+        
+    return beamng_config, scenarios_config, sensors_config
+
+def sim_setup(scenario_name='highway'):
     """
     Setup BeamNG simulation, scenario, vehicle, spawn point and sensors.
+    Args:
+        scenario_name (str): Name of the scenario to load ('highway' or 'city')
     """
-
-    beamng = BeamNGpy('localhost', 64256, home=r'C:\Users\user\Documents\beamng-tech\BeamNG.tech.v0.36.4.0')
+    # Load configurations
+    beamng_config, scenarios_config, sensors_config = load_config()
+    
+    # Setup BeamNG
+    sim_cfg = beamng_config['simulation']
+    beamng = BeamNGpy(sim_cfg['host'], sim_cfg['port'], home=sim_cfg['home'])
     beamng.open()
 
-    #scenario = Scenario('west_coast_usa', 'lane_detection_city')
-    scenario = Scenario('west_coast_usa', 'lane_detection_highway')
-
-    vehicle = Vehicle('ego_vehicle', model='etk800', licence='JULIAN')
-    #vehicle = Vehicle('Q8', model='rsq8_600_tfsi', licence='JULIAN')
-
-    # Spawn positions rotation conversion
-    rot_city = yaw_to_quat(-133.506 + 180)
-    rot_highway = yaw_to_quat(-135.678)
-
-    # Street Spawn
-    #scenario.add_vehicle(vehicle, pos=(-730.212, 94.630, 118.517), rot_quat=rot_city)
+    # Setup scenario
+    if scenario_name not in scenarios_config:
+        raise ValueError(f"Scenario '{scenario_name}' not found in config")
     
-    # Highway Spawn
-    scenario.add_vehicle(vehicle, pos=(-287.210, 73.609, 112.363), rot_quat=rot_highway)
+    scenario_cfg = scenarios_config[scenario_name]
+    scenario = Scenario(scenario_cfg['map'], scenario_cfg['scene'])
+
+    # Setup vehicle
+    vehicle_name = scenario_cfg['vehicle']
+    if vehicle_name not in beamng_config['vehicles']:
+        raise ValueError(f"Vehicle '{vehicle_name}' not found in config")
+    
+    vehicle_cfg = beamng_config['vehicles'][vehicle_name]
+    vehicle = Vehicle(vehicle_cfg['name'], model=vehicle_cfg['model'], licence=vehicle_cfg['license'])
+
+    # Spawn vehicle
+    rot = yaw_to_quat(vehicle_cfg['spawn_yaw'])
+    scenario.add_vehicle(vehicle, pos=tuple(vehicle_cfg['spawn_pos']), rot_quat=rot)
 
     scenario.make(beamng)
-
-    beamng.settings.set_deterministic(60)
-
+    beamng.settings.set_deterministic(sim_cfg['deterministic_fps'])
     beamng.scenario.load(scenario)
     beamng.scenario.start()
-    
 
-    try:
-        camera = Camera(
-            'front_cam',
-            beamng,
-            vehicle,
-            requested_update_time=0.01,
-            is_using_shared_memory=True,
-            pos=(0, -1.3, 1.4),
-            dir=(0, -1, 0),
-            field_of_view_y=90,
-            near_far_planes=(0.1, 1000),
-            resolution=(640, 360),
-            is_streaming=True,
-            is_render_colours=True,
-        )
-        print("Camera initialized")
-    except Exception as e:
-        print(f"Camera initialization error: {e}")
-        camera = None
-    try:
-        lidar = Lidar(
-            "lidar1",
-            beamng,
-            vehicle,
-            requested_update_time=0.01,
-            is_using_shared_memory=True,
-            is_rotate_mode=False,
-            is_360_mode=False,
-            horizontal_angle=170,  # Horizontal field of view
-            vertical_angle=45,  # Vertical field of view
-            vertical_resolution=64,  # Number of lasers/channels
-            density=3,
-            frequency=30,
-            max_distance=100,
-            pos=(0, -0.35, 1.425),
-            is_visualised=False,
-        )
-        print("LiDAR initialized")
-    except Exception as e:
-        print(f"LiDAR initialization error: {e}")
-        lidar = None
-    
-    try:
-        print("Attempting Radar initialization...")
-        radar = Radar(
-            "radar1",
-            beamng,
-            vehicle,
-            requested_update_time=0.01,
-            pos=(0, -2.5, 0.5),
-            dir=(0, -1, 0),
-            up=(0, 0, 1),
-            size=(200, 200),
-            near_far_planes=(2, 120),
-            field_of_view_y=70,
-        )
-        print("Radar initialized")
-    except Exception as e:
-        print(f"  Radar initialization error: {e}")
-        radar = None
+    # Setup sensors
+    sensors = sensors_config['sensors']
+    camera = lidar = radar = None
+
+    # Initialize camera if enabled
+    if sensors['camera']['enabled']:
+        try:
+            cam_cfg = sensors['camera']
+            camera = Camera(
+                cam_cfg['name'],
+                beamng,
+                vehicle,
+                requested_update_time=cam_cfg['requested_update_time'],
+                is_using_shared_memory=cam_cfg['is_using_shared_memory'],
+                pos=tuple(cam_cfg['pos']),
+                dir=tuple(cam_cfg['dir']),
+                field_of_view_y=cam_cfg['field_of_view_y'],
+                near_far_planes=tuple(cam_cfg['near_far_planes']),
+                resolution=tuple(cam_cfg['resolution']),
+                is_streaming=cam_cfg['is_streaming'],
+                is_render_colours=cam_cfg['is_render_colours'],
+            )
+            print("Camera initialized")
+        except Exception as e:
+            print(f"Camera initialization error: {e}")
+
+    # Initialize LiDAR if enabled
+    if sensors['lidar']['enabled']:
+        try:
+            lidar_cfg = sensors['lidar']
+            lidar = Lidar(
+                lidar_cfg['name'],
+                beamng,
+                vehicle,
+                requested_update_time=lidar_cfg['requested_update_time'],
+                is_using_shared_memory=lidar_cfg['is_using_shared_memory'],
+                is_rotate_mode=lidar_cfg['is_rotate_mode'],
+                horizontal_angle=lidar_cfg['horizontal_angle'],
+                vertical_angle=lidar_cfg['vertical_angle'],
+                vertical_resolution=lidar_cfg['vertical_resolution'],
+                density=lidar_cfg['density'],
+                frequency=lidar_cfg['frequency'],
+                max_distance=lidar_cfg['max_distance'],
+                pos=tuple(lidar_cfg['pos']),
+                is_visualised=lidar_cfg['is_visualised'],
+            )
+            print("LiDAR initialized")
+        except Exception as e:
+            print(f"LiDAR initialization error: {e}")
+
+    # Initialize Radar if enabled
+    if sensors['radar']['enabled']:
+        try:
+            print("Attempting Radar initialization...")
+            radar_cfg = sensors['radar']
+            radar = Radar(
+                radar_cfg['name'],
+                beamng,
+                vehicle,
+                requested_update_time=radar_cfg['requested_update_time'],
+                pos=tuple(radar_cfg['pos']),
+                dir=tuple(radar_cfg['dir']),
+                up=tuple(radar_cfg['up']),
+                size=tuple(radar_cfg['size']),
+                near_far_planes=tuple(radar_cfg['near_far_planes']),
+                field_of_view_y=radar_cfg['field_of_view_y'],
+            )
+            print("Radar initialized")
+        except Exception as e:
+            print(f"Radar initialization error: {e}")
+            radar = None
 
     return beamng, scenario, vehicle, camera, lidar, radar
 
@@ -366,7 +400,14 @@ def main():
         print(f"Model loading error: {e}")
         return
 
-    beamng, scenario, vehicle, camera, lidar, radar = sim_setup()
+    # Load configurations
+    beamng_config, scenarios_config, sensors_config = load_config()
+    
+    # Load control config
+    with open(os.path.join(os.path.dirname(__file__), 'config/control.yaml'), 'r') as f:
+        control_config = yaml.safe_load(f)
+
+    beamng, scenario, vehicle, camera, lidar, radar = sim_setup(scenario_name='highway')
     print("Simulation setup complete")
 
     print("Wait for sensors to initialize")
@@ -393,14 +434,19 @@ def main():
     except Exception as e:
         print(f"Radar error: {e}")
 
-    steering_pid = PIDController(Kp=0.020, Ki=0.0, Kd=0.003, derivative_filter_alpha=0.2)
-    max_steering_change = 0.22
+    # Load control parameters from config
+    control_cfg = control_config['control']
+    steering_pid = PIDController(**control_cfg['steering_pid'])
+    max_steering_change = control_cfg['max_steering_change']
     previous_steering = 0.0
 
-
-    base_throttle = 0.12
-    target_speed_kph = 40
-    speed_pid = PIDController(Kp=0.02, Ki=0.0, Kd=0.01)
+    base_throttle = control_cfg['base_throttle']
+    target_speed_kph = control_cfg['target_speed_kph']
+    speed_pid = PIDController(
+        Kp=control_cfg['speed_pid']['Kp'],
+        Ki=control_cfg['speed_pid']['Ki'],
+        Kd=control_cfg['speed_pid']['Kd']
+    )
 
     frame_count = 0
 
@@ -465,7 +511,6 @@ def main():
             
             # LiDAR pose (offset from base_link + vehicle rotation/position)
             lidar_offset = np.array([0.0, -0.35, 1.425])
-            from scipy.spatial.transform import Rotation as R
             car_quat = yaw_rad_to_quaternion(car_yaw)
             rotation = R.from_quat([car_quat[0], car_quat[1], car_quat[2], car_quat[3]])
             lidar_pos_in_map = rotation.apply(lidar_offset) + car_pos

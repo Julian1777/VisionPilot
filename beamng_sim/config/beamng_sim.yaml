@@ -1,0 +1,27 @@
+simulation:
+  host: "localhost"
+  port: 64256
+  home: "C:\\Users\\user\\Documents\\beamng-tech\\BeamNG.tech.v0.36.4.0"
+  deterministic_fps: 60
+
+vehicles:
+  etk800_highway:
+    name: "etk_egovehicle"
+    model: "etk800"
+    license: "JULIAN"
+    spawn_pos: [-287.210, 73.609, 112.363]
+    spawn_yaw: -135.678
+  
+  q8_default_highway:
+    name: "q8_egovehicle"
+    model: "rsq8_600_tfsi"
+    license: "JULIAN"
+    spawn_pos: [-287.210, 73.609, 112.363]
+    spawn_yaw: -135.678
+
+  etk800_city:
+    name: "etk_egovehicle"
+    model: "etk800"
+    license: "JULIAN"
+    spawn_pos: [-730.212, 94.630, 118.517]
+    spawn_yaw: 46.494

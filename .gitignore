@@ -13,6 +13,7 @@ __pycache__/
 *.py[cod]
 
 .ipynb_checkpoints/
+notebooks/
 
 .vscode/
 

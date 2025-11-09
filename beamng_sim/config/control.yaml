@@ -1,0 +1,19 @@
+ai:
+  enabled: true
+  drive_in_lane: true
+  mode: span
+
+control:
+
+  steering_pid:
+    Kp: 0.020
+    Ki: 0.0
+    Kd: 0.003
+    derivative_filter_alpha: 0.2
+  max_steering_change: 0.22
+  base_throttle: 0.12
+  target_speed_kph: 40
+  speed_pid:
+    Kp: 0.02
+    Ki: 0.0
+    Kd: 0.01
