@@ -25,4 +25,5 @@ notebooks/
 *.jar
 
 lane-detection-cnn/unet/lane_detection_unet.py
-beamng_sim/lane_detection/engn/
+
+beamng_sim/debug_output/
