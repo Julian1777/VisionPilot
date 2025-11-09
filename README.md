@@ -168,7 +168,7 @@ Configuration files are located in the `beamng_sim/config/` directory:
 - [x] Real-time drive logging and telemetry
 - [ ] Real time Annotations Overlay in Foxglove
 
-### 📋 README To-Dos
+### README To-Dos
 - [ ] Add demo images and videos to README
 - [ ] Add performance benchmarks section
 - [ ] Add Table of Contents for easier navigation
