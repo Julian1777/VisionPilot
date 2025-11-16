@@ -36,9 +36,23 @@ Below are sample demos of the system's capabilities. More demos (including new m
 |-------------------------------------|--|
 | ![vehicle](assets/vehicle.gif) <br> *(coming soon)* | |
 
-> More demo videos and visualizations will be added as features are completed and models are improved.
 
 
+## Foxglove Visualization Demo
+
+See real-time LiDAR point cloud streaming and autonomous vehicle telemetry in Foxglove Studio:
+
+[![Foxglove LiDAR Visualization Demo](https://img.youtube.com/vi/4HJDvL2Q6AY/0.jpg)](https://www.youtube.com/watch?v=4HJDvL2Q6AY)
+
+Watch on YouTube: [https://www.youtube.com/watch?v=4HJDvL2Q6AY](https://www.youtube.com/watch?v=4HJDvL2Q6AY)
+
+This demo shows:
+- Real-time LiDAR point cloud visualization
+- Foxglove Studio WebSocket integration
+- Autonomous vehicle simulation with BeamNG.tech
+- Modular Python pipeline for sensor fusion and control
+
+> More demo videos and visualizations will be added as features are completed.
 
 ## Features
 
