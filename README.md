@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/banner.png" alt="VisionPilot Banner" height="200" />
+  <img src="images/bannernobg.png" alt="VisionPilot Banner" height="200" />
 </p>
 
 # VisionPilot: Autonomous Driving Simulation, Computer Vision & Real-Time Perception (BeamNG.tech)
