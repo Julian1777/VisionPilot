@@ -17,7 +17,9 @@ vehicles:
     model: "q8_andronisk"
     license: "JULIAN"
     part_config: "main.pc"
-    spawn_pos: [ -287.21, 73.609, 112.363 ]
+    #spawn_pos: [ -287.21, 73.609, 112.363 ] # 2x Solid lane spawn pos
+    spawn_pos: [ -249.556, 107.386, 113.288 ] # 1x Dashed lane spawn pos
+    #spawn_pos: [ -253.313, 97.953, 113.103] # 2x Dashed lane spawn pos
     spawn_yaw: -135.678
 
   etk800_city:

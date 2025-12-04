@@ -176,21 +176,6 @@ def compute_shared_confidence(left_fitx, right_fitx, ploty, current_fit=None, pr
         'temporal_score': temporal_score,
     }
 
-def compute_confidence_unet(left_fitx, right_fitx, ploty, current_fit=None, previous_fit=None):
-    shared_score = compute_shared_confidence(left_fitx, right_fitx, ploty, current_fit=current_fit, previous_fit=previous_fit)
-
-    # Add UNet-specific metrics
-
-    confidence = (
-        weights['num_lines'] * shared_score['num_lines_score'] +
-        weights['length'] * shared_score['length_continuity_score'] +
-        weights['geometry'] * shared_score['geometry_score'] +
-        weights['temporal'] * shared_score['temporal_score']
-        # weights['unet_specific'] * unet_specific_score
-    ) / sum(weights.values())
-
-    return min(max(confidence, 0.0), 1.0)
-
 
 def compute_confidence_cv(left_fitx, right_fitx, ploty, current_fit=None, previous_fit=None):
     shared_score = compute_shared_confidence(left_fitx, right_fitx, ploty, current_fit=current_fit, previous_fit=previous_fit)

@@ -193,12 +193,11 @@ Configuration files are located in the `beamng_sim/config/` directory:
 ## Roadmap
 
 ### Perception
-- [x] ⭐ Sign classification & Detection (CNN / YOLOv8) (Needs Improvement in accuracy)
-- [x] Traffic light classification & Detection (CNN / YOLOv8)
+- [x] Sign classification & Detection (CNN / YOLOv11)
+- [x] Traffic light classification & Detection (CNN / YOLOv11m)
 - [x] Lane detection Fusion (SCNN / CV)
 - [x] Advanced lane detection using OpenCV (robust highway, lighting, outlier handling)
 - [x] Integrate Majority Voting system for CV
-- [x] Camera Calibration
 - [ ] Blind Spot Monitoring
 - [ ] Real-Time Object Tracking
 - [ ] Handle dashed lines better in lane detection

@@ -176,6 +176,25 @@ class FoxgloveBridge:
             }
         )
         self.sign_channel = self.channels['sign_detection']
+
+        # Traffic Light detection channel (JSON)
+        self.channels['traffic_light_detection'] = Channel(
+            topic="/traffic_light_detections",
+            message_encoding="json",
+            schema={
+                "type": "object",
+                "properties": {
+                    "timestamp": {"type": "integer"},
+                    "type": {"type": "string"},
+                    "x": {"type": "number"},
+                    "y": {"type": "number"},
+                    "width": {"type": "number"},
+                    "height": {"type": "number"},
+                    "confidence": {"type": "number"}
+                }
+            }
+        )
+        self.traffic_light_channel = self.channels['traffic_light_detection']
         
         print("All Foxglove channels initialized")
     

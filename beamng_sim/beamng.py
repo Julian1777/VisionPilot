@@ -12,7 +12,7 @@ from foxglove.schemas import Color
 
 from beamng_sim.sign.detect_classify import random_brightness
 
-from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL, UNET_LANE_DETECTION_MODEL, SCNN_LANE_DETECTION_MODEL, CAMERA_CALIBRATION
+from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL, VEHICLE_PEDESTRIAN_MODEL, SCNN_LANE_DETECTION_MODEL, LIGHT_DETECTION_CLASSIFICATION_MODEL
 
 from ultralytics import YOLO
 import tensorflow as tf
@@ -27,6 +27,7 @@ from scipy.spatial.transform import Rotation as R
 from beamng_sim.lane_detection.main import process_frame_cv as lane_detection_cv_process_frame
 from beamng_sim.lane_detection.main import process_frame_scnn as lane_detection_scnn_process_frame
 from beamng_sim.sign.main import process_frame as sign_process_frame
+from beamng_sim.traffic_light.detect_classify import detect_traffic_lights
 from beamng_sim.vehicle_obstacle.main import process_frame as vehicle_obstacle_process_frame
 from beamng_sim.lidar.main import process_frame as lidar_process_frame
 from beamng_sim.radar.main import process_frame as radar_process_frame
@@ -92,9 +93,9 @@ def load_models():
     MODELS['vehicle'] = YOLO(str(VEHICLE_PEDESTRIAN_MODEL))
     print("Vehicle detection model loaded")
 
-    # Lane detection UNET model
-    MODELS['lane_unet'] = tf.keras.models.load_model(str(UNET_LANE_DETECTION_MODEL))
-    print("Lane detection UNET model loaded")
+    # Traffic Light detection model
+    MODELS['traffic_light'] = YOLO(str(LIGHT_DETECTION_CLASSIFICATION_MODEL))
+    print("Traffic Light detection model loaded")
     
     # Lane detection SCNN model
     from beamng_sim.lane_detection.scnn.scnn_model import SCNN
@@ -413,19 +414,54 @@ def lane_detection_fused(img, speed_kph, previous_steering, step_i, vehicle_mode
 
     return result, fused_metrics
 
-def sign_detection_classification(img):
+def sign_detection_classification(img, draw=True):
     """
     Process sign detection and classification on the input image.
     """
-    sign_detections, sign_img = sign_process_frame(img, draw_detections=True)
+    sign_detections, sign_img = sign_process_frame(img, draw_detections=draw)
     return sign_detections, sign_img
 
-def vehicle_obstacle_detection(img):
+def vehicle_obstacle_detection(img, draw=True):
     """
     Process vehicle and pedestrian detection on the input image.
     """
-    vehicle_obstacle_detections, vehicle_img = vehicle_obstacle_process_frame(img, draw_detections=True)
+    vehicle_obstacle_detections, vehicle_img = vehicle_obstacle_process_frame(img, draw_detections=draw)
     return vehicle_obstacle_detections, vehicle_img
+
+def traffic_light_detection(img):
+    """
+    Process traffic light detection on the input image.
+    """
+    detections = detect_traffic_lights(img)
+    return detections
+
+def draw_combined_detections(img, sign_detections, vehicle_detections, tl_detections):
+    result_img = img.copy()
+    
+    # Draw Signs (Blue)
+    for det in sign_detections:
+        x1, y1, x2, y2 = det['bbox']
+        classification = det.get('classification', 'Sign')
+        conf = det.get('classification_confidence', 0.0)
+        label = f"{classification} {conf:.2f}"
+        cv2.rectangle(result_img, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
+        cv2.putText(result_img, label, (int(x1), int(y1)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+    # Draw Vehicles (Green)
+    for det in vehicle_detections:
+        x1, y1, x2, y2 = det['bbox']
+        label = f"{det['class']} {det['confidence']:.2f}"
+        cv2.rectangle(result_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+        cv2.putText(result_img, label, (int(x1), int(y1)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # Draw Traffic Lights (Orange)
+    for det in tl_detections:
+        x1, y1, x2, y2 = det['bbox']
+        label = f"{det['class']} {det['confidence']:.2f}"
+        cv2.rectangle(result_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 165, 255), 2) 
+        cv2.putText(result_img, label, (int(x1), int(y1)-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2)
+        
+    return result_img
 
 # def lidar_object_detections(lidar_data, camera_detections=vehicle_obstacle_detection):
 #     """
@@ -618,19 +654,31 @@ def main():
             if step_i % 80 == 0: # Lower later
                 try:
                     # Sign Detection
-                    sign_detections, sign_img = sign_detection_classification(img)
-                    #cv2.imshow('Sign Detection', sign_img)
+                    sign_detections, _ = sign_detection_classification(img, draw=False)
                 except Exception as sign_e:
                     print(f"Sign detection error: {sign_e}")
                     sign_detections = []
                 
                 try:
                     # Vehicle & Obstacle Detection
-                    vehicle_detections, vehicle_img = vehicle_obstacle_detection(img)
-                    #cv2.imshow('Vehicle and Pedestrian Detection', vehicle_img)
+                    vehicle_detections, _ = vehicle_obstacle_detection(img, draw=False)
                 except Exception as vehicle_e:
                     print(f"Vehicle detection error: {vehicle_e}")
                     vehicle_detections = []
+
+                try:
+                    # Traffic Light Detection
+                    traffic_light_detections = traffic_light_detection(img)
+                except Exception as tl_e:
+                    print(f"Traffic light detection error: {tl_e}")
+                    traffic_light_detections = []
+                
+                # Combine and display all detections
+                try:
+                    combined_img = draw_combined_detections(img, sign_detections, vehicle_detections, traffic_light_detections)
+                    cv2.imshow('All Detections', combined_img)
+                except Exception as draw_e:
+                    print(f"Error drawing detections: {draw_e}")
 
             # radar_detections, radar_fig = radar_process_frame(
             #     radar_sensor=radar, 
@@ -830,6 +878,25 @@ def main():
                             print(f"Sign detection sent: {sign_det.get('classification', 'Unknown')}")
                         except Exception as e:
                             print(f"Error sending sign detection: {e}")
+
+                # Send traffic light detections
+                if traffic_light_detections:
+                    for tl_det in traffic_light_detections:
+                        try:
+                            bbox = tl_det['bbox']
+                            tl_message = {
+                                "timestamp": timestamp_ns,
+                                "type": tl_det.get('class', 'Unknown'),
+                                "x": float((bbox[0] + bbox[2]) / 2),
+                                "y": float((bbox[1] + bbox[3]) / 2),
+                                "width": float(bbox[2] - bbox[0]),
+                                "height": float(bbox[3] - bbox[1]),
+                                "confidence": float(tl_det.get('confidence', 0.0))
+                            }
+                            bridge.traffic_light_channel.log(tl_message)
+                            print(f"Traffic light detection sent: {tl_det.get('class', 'Unknown')}")
+                        except Exception as e:
+                            print(f"Error sending traffic light detection: {e}")
 
     except KeyboardInterrupt:
         print("Interrupted by user")

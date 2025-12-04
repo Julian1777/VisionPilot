@@ -17,6 +17,24 @@ def get_histogram(binary_warped):
     histogram = histogram_blurred.flatten()
     return histogram
 
+def detect_lane_type(binary_warped):
+    histogram = get_histogram(binary_warped)
+
+    histogram_variance = np.var(histogram)
+
+    is_dashed_lane = histogram_variance > 500
+
+    if is_dashed_lane:
+        print(f"Dashed lane detected (variance: {histogram_variance:.1f})")
+    else:
+        print(f"Solid lane detected (variance: {histogram_variance:.1f})")
+
+    return is_dashed_lane
+
+def fill_dashed_lane_gaps(binary_warped, gap_size=20):
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, gap_size))
+    filled = cv2.morphologyEx(binary_warped, cv2.MORPH_CLOSE, kernel)
+    return filled
 
 def sliding_window_search(binary_warped, histogram):
     # Additional filtering state
@@ -45,7 +63,11 @@ def sliding_window_search(binary_warped, histogram):
     leftx_current = leftx_base
     rightx_current = rightx_base
     margin = 100  # Use symmetric margin for both lanes
-    minpix = 50
+
+    is_dashed_lane = detect_lane_type(binary_warped)
+    minpix = 30 if is_dashed_lane else 50
+
+
     left_lane_inds = []
     right_lane_inds = []
     
@@ -242,4 +264,4 @@ def sliding_window_search(binary_warped, histogram):
             sliding_window_search.last_lane_center = (left_fitx[-1] + right_fitx[-1]) / 2.0
             sliding_window_search.last_lane_width = lane_width_check
 
-    return ploty, left_fit, right_fit, left_fitx, right_fitx
+    return ploty, left_fit, right_fit, left_fitx, right_fitx, is_dashed_lane

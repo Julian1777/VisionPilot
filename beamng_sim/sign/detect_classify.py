@@ -12,7 +12,7 @@ from config.config import SIGN_DETECTION_MODEL, SIGN_CLASSIFICATION_MODEL
 
 from tensorflow.keras.saving import register_keras_serializable
 
-IMG_SIZE = (30, 30)
+IMG_SIZE = (48, 48)
 SIGN_MODEL_PATH = str(SIGN_DETECTION_MODEL)
 SIGN_CLASSIFY_MODEL_PATH = str(SIGN_CLASSIFICATION_MODEL)
 
@@ -28,6 +28,29 @@ def get_models_dict():
 @register_keras_serializable()
 def random_brightness(x):
     return tf.image.random_brightness(x, max_delta=0.2)
+
+def preprocess_img(img):
+    """
+    Preprocessing function matching the training script.
+    Args:
+        img: numpy array image (RGB)
+    Returns:
+        Preprocessed image (48x48, normalized)
+    """
+    if img is None or img.size == 0:
+        raise ValueError("Input image is empty")
+        
+    # Convert to HSV
+    hsv = cv.cvtColor(img, cv.COLOR_RGB2HSV)
+    # Histogram equalization on V channel
+    hsv[:,:,2] = cv.equalizeHist(hsv[:,:,2])
+    # Convert back to RGB
+    img = cv.cvtColor(hsv, cv.COLOR_HSV2RGB)
+    # Resize to 48x48
+    img = cv.resize(img, IMG_SIZE)
+    # Normalize to [0, 1]
+    img = img.astype(np.float32) / 255.0
+    return img
 
 def load_class_names(csv_path):
     try:
@@ -63,12 +86,9 @@ for class_id, description in class_names_dict.items():
 
 def classify_sign_crop(sign_crop):
     try:
-        sign_crop_rgb = sign_crop
-
-        img_pil = Image.fromarray(sign_crop_rgb)
-        img_pil = img_pil.resize(IMG_SIZE)
-        img_np = np.array(img_pil).astype(np.float32) / 255.0
-        img = np.expand_dims(img_np, axis=0)
+        # Preprocess the crop
+        img = preprocess_img(sign_crop)
+        img = np.expand_dims(img, axis=0)
 
         models_dict = get_models_dict()
         if models_dict is not None and 'sign_classify' in models_dict:
