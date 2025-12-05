@@ -5,26 +5,13 @@ simulation:
   deterministic_fps: 60
 
 vehicles:
-  etk800_highway:
+  etk800:
     name: "etk_egovehicle"
     model: "etk800"
     license: "JULIAN"
-    spawn_pos: [ -287.21, 73.609, 112.363 ]
-    spawn_yaw: -135.678
 
-  q8_default_highway:
+  q8_andronisk:
     name: "q8_egovehicle"
     model: "q8_andronisk"
     license: "JULIAN"
     part_config: "main.pc"
-    #spawn_pos: [ -287.21, 73.609, 112.363 ] # 2x Solid lane spawn pos
-    spawn_pos: [ -249.556, 107.386, 113.288 ] # 1x Dashed lane spawn pos
-    #spawn_pos: [ -253.313, 97.953, 113.103] # 2x Dashed lane spawn pos
-    spawn_yaw: -135.678
-
-  etk800_city:
-    name: "etk_egovehicle"
-    model: "etk800"
-    license: "JULIAN"
-    spawn_pos: [ -730.212, 94.630, 118.517 ]
-    spawn_yaw: 46.494

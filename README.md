@@ -15,7 +15,7 @@
   - [Table of Contents](#table-of-contents)
   - [Overview](#overview)
   - [Demos](#demos)
-    - [Pure Sign Detection \& Detection and classification of vehicles and pedestrians Demo](#pure-sign-detection--detection-and-classification-of-vehicles-and-pedestrians-demo)
+    - [Sign Detection \& Detection and classification](#sign-detection--detection-and-classification)
   - [Traffic Light Detection \& Classification Demo](#traffic-light-detection--classification-demo)
     - [Latest Lane Detection Demo (v2)](#latest-lane-detection-demo-v2)
       - [Previous Lane Detection Demo (v1)](#previous-lane-detection-demo-v1)
@@ -53,13 +53,14 @@ A modular Python project for autonomous driving research and prototyping, fully 
 
 ## Demos
 
-### Pure Sign Detection & Detection and classification of vehicles and pedestrians Demo
+### Sign Detection & Detection and classification
 
-This demo shows real-time traffic sign detection (no classification) as well as vehicle and pedestrian on a video:
+
+This demo shows real-time traffic sign detection (no classification) on a video:
 
 ![Sign Detection Demo & Vehicle Pedestrian](images/traffic-sign-classification/sign_detection_demo.gif)
 
-> Only detection is shown; classification is not included in this demo.
+**Extended Demo:** [Watch a full video here](https://youtu.be/ujGkQJ2BqV0)
 
 ## Traffic Light Detection & Classification Demo
 

@@ -128,47 +128,47 @@ def load_config():
     return beamng_config, scenarios_config, sensors_config
 
 
-def sim_setup(scenario_name='highway', vehicle_name=None):
+def sim_setup(map_name='west_coast_usa', scenario_type='highway', vehicle_name='q8_andronisk'):
     """
     Setup BeamNG simulation, scenario, vehicle, spawn point and sensors.
     Args:
-        scenario_name (str): Name of the scenario to load ('highway' or 'city')
-        vehicle_name (str): Name of the vehicle config to use (e.g., 'etk800_highway', 'q8_default_highway'). 
-                           If None, uses the vehicle from the scenario config.
+        map_name (str): Name of the map ('west_coast_usa' or 'italy')
+        scenario_type (str): Scenario type ('highway' or 'city')
+        vehicle_name (str): Name of the vehicle to use ('etk800' or 'q8_andronisk')
     """
-    # Load configurations
     beamng_config, scenarios_config, sensors_config = load_config()
     
-    # Setup BeamNG
+    if map_name not in scenarios_config['maps']:
+        raise ValueError(f"Map '{map_name}' not found in config. Available maps: {list(scenarios_config['maps'].keys())}")
+    
+    map_cfg = scenarios_config['maps'][map_name]
+    
+    if scenario_type not in map_cfg or scenario_type not in ['highway', 'city']:
+        raise ValueError(f"Scenario type '{scenario_type}' not found for map '{map_name}'. Available: {list(map_cfg.keys())}")
+    
+    scenario_cfg = map_cfg[scenario_type]
+    
+    if vehicle_name not in beamng_config['vehicles']:
+        raise ValueError(f"Vehicle '{vehicle_name}' not found in config. Available vehicles: {list(beamng_config['vehicles'].keys())}")
+    
+    vehicle_cfg = beamng_config['vehicles'][vehicle_name]
+    
     sim_cfg = beamng_config['simulation']
     beamng = BeamNGpy(sim_cfg['host'], sim_cfg['port'], home=sim_cfg['home'])
     beamng.open()
 
-    # Setup scenario
-    if scenario_name not in scenarios_config:
-        raise ValueError(f"Scenario '{scenario_name}' not found in config")
-    
-    scenario_cfg = scenarios_config[scenario_name]
-    scenario = Scenario(scenario_cfg['map'], scenario_cfg['scene'])
+    scenario = Scenario(map_cfg['map_path'], scenario_cfg['scene'])
 
-    if vehicle_name is None:
-        vehicle_name = scenario_cfg['vehicle']
-    
-    if vehicle_name not in beamng_config['vehicles']:
-        raise ValueError(f"Vehicle '{vehicle_name}' not found in config")
-    
-    vehicle_cfg = beamng_config['vehicles'][vehicle_name]
-    
     vehicle = Vehicle(
         vehicle_cfg['name'],
         model=vehicle_cfg['model'],
         licence=vehicle_cfg['license'],
-        part_config=vehicle_cfg['part_config']
+        part_config=vehicle_cfg.get('part_config', None)
     )
 
     # Spawn vehicle
-    rot = yaw_to_quat(vehicle_cfg['spawn_yaw'])
-    scenario.add_vehicle(vehicle, pos=tuple(vehicle_cfg['spawn_pos']), rot_quat=rot)
+    rot = yaw_to_quat(scenario_cfg['spawn_yaw'])
+    scenario.add_vehicle(vehicle, pos=tuple(scenario_cfg['spawn_pos']), rot_quat=rot)
 
     scenario.make(beamng)
     beamng.settings.set_deterministic(60)
@@ -504,17 +504,13 @@ def main():
         print(f"Model loading error: {e}")
         return
 
-    # Load configurations
-    beamng_config, scenarios_config, sensors_config = load_config()
-    
-    # Load control config
-    with open(os.path.join(os.path.dirname(__file__), 'config/control.yaml'), 'r') as f:
-        control_config = yaml.safe_load(f)
-
-    # Change scenario name between 'highway' and 'city' here
-    # You can also specify a vehicle: 'etk800_highway', 'q8_default_highway', 'etk800_city', 'q8_default_city'
-    # If vehicle_name is None, it will use the default vehicle from the scenario config
-    beamng, scenario, vehicle, camera, lidar, radars, gps, imu, vehicle_model = sim_setup(scenario_name='highway', vehicle_name='q8_default_highway')
+    # Change map/scenario here: use map_name='west_coast_usa' or 'italy', scenario_type='highway' or 'city'
+    # vehicle_name can be 'etk800' or 'q8_andronisk'
+    beamng, scenario, vehicle, camera, lidar, radars, gps, imu, vehicle_model = sim_setup(
+        map_name='italy', 
+        scenario_type='highway', 
+        vehicle_name='q8_andronisk'
+    )
     print("Simulation setup complete")
 
     print("Wait for sensors to initialize")

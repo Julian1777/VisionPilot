@@ -1,9 +1,30 @@
-highway:
-  map: "west_coast_usa"
-  scene: "highway"
-  vehicle: "etk800_highway"
+# Map and scenario definitions
+# Structure: map_name -> scenario_type -> configuration
+maps:
+  west_coast_usa:
+    display_name: "West Coast USA"
+    map_path: "west_coast_usa"
 
-city:
-  map: "west_coast_usa"
-  scene: "city"
-  vehicle: "etk800_city"
+    highway:
+      scene: "highway"
+      spawn_pos: [ -287.21, 73.609, 112.363 ]
+      spawn_yaw: -135.678
+
+    city:
+      scene: "city"
+      spawn_pos: [ -730.212, 94.630, 118.517 ]
+      spawn_yaw: 46.494
+
+  italy:
+    display_name: "Italy"
+    map_path: "italy"
+
+    highway:
+      scene: "highway"
+      spawn_pos: [ 1277.754, -309.528, 148.114 ]
+      spawn_yaw: -2.36
+
+    city:
+      scene: "city"
+      spawn_pos: [ 1422.660, 1333.449, 145.837 ]
+      spawn_yaw: 25.496
